@@ -3,7 +3,15 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   worker: { format: 'es' },
-  plugins: [VitePWA({
+  plugins: [{
+    name: 'strip-radix-client-directives',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.includes('/node_modules/@radix-ui/')) return
+      // This build only targets browsers; React Server Components directives have no meaning here.
+      return code.replace(/^(["'])use client\1;\s*/, '')
+    },
+  }, VitePWA({
     strategies: 'injectManifest', srcDir: 'src', filename: 'sw.ts',
     injectRegister: 'auto',
     manifest: { name: 'Astronote', short_name: 'Astronote', start_url: '/', display: 'standalone',

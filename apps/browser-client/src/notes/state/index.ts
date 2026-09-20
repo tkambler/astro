@@ -36,9 +36,9 @@ type State = {
   progress: SyncProgress | null;
   setSearch(search: string): Promise<void>; setTagFilter(tag: string | null): Promise<void>; refresh(): Promise<void>;
   resort(): void;
-  select(id: string | null): void; create(title: string): Promise<void>;
+  select(id: string | null): void; create(title: string): Promise<boolean>;
   save(id: string, title: string, body: string, tags: string[]): Promise<void>;
-  remove(id: string): Promise<void>; reset(): Promise<void>; sync(): Promise<void>;
+  remove(id: string): Promise<boolean>; reset(): Promise<void>; sync(): Promise<void>;
 }
 
 export const useNotes = create<State>((set, get) => ({
@@ -73,10 +73,11 @@ export const useNotes = create<State>((set, get) => ({
   async create(title) {
     const id = crypto.randomUUID()
     try { await saveNote(id, title.trim().slice(0, 500) || 'Untitled', '') }
-    catch (error) { set({ status: 'storage-error', error: String(error) }); return }
+    catch (error) { set({ status: 'storage-error', error: String(error) }); return false }
     set({ search: '', tagFilter: null, selectedId: id, selectionCleared: false })
     await get().refresh()
     void get().sync()
+    return get().status !== 'storage-error'
   },
   async save(id, title, body, tags) {
     let changed: boolean
@@ -89,12 +90,13 @@ export const useNotes = create<State>((set, get) => ({
   },
   async remove(id) {
     const note = get().notes.find(item => item.id === id)
-    if (!note) return
+    if (!note) return false
     try { await saveNote(id, note.title, note.body, true, undefined, note.tags) }
-    catch (error) { set({ status: 'storage-error', error: String(error) }); return }
+    catch (error) { set({ status: 'storage-error', error: String(error) }); return false }
     set({ selectedId: null, selectionCleared: false })
     await get().refresh()
     void get().sync()
+    return get().status !== 'storage-error'
   },
   async reset() {
     clearTimeout(editSyncTimer)
