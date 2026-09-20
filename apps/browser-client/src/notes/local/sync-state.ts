@@ -1,0 +1,62 @@
+import type { Note, NoteMutation } from '@astronote/schemas'
+import { announceChange, columns, db, owner, ready, type Row } from './database'
+
+export async function pendingMutations(ownerId = owner()): Promise<NoteMutation[]> {
+  await ready()
+  const result = await db.query<Row>(`SELECT ${columns} FROM notes WHERE dirty = true AND owner_id=$1 ORDER BY updated_at ASC`, [ownerId])
+  return result.rows.map(row => ({ mutationId: row.mutation_id!, id: row.id,
+    baseRevision: row.base_revision, title: row.title, body: row.body, tags: row.tags, deleted: !!row.deleted_at }))
+}
+export async function acceptPush(mutation: NoteMutation, serverNote: Note, ownerId = owner()) {
+  await ready()
+  // A newer local edit keeps its own mutation ID, while its base advances to the acknowledged revision.
+  await db.query(`UPDATE notes SET revision=$1,base_revision=$1,
+    synced_body=$6,synced_title=$7,
+    dirty=CASE WHEN mutation_id=$2 THEN false ELSE dirty END,
+    mutation_id=CASE WHEN mutation_id=$2 THEN NULL ELSE mutation_id END,
+    updated_at=CASE WHEN mutation_id=$2 THEN $3 ELSE updated_at END
+    WHERE id=$4 AND owner_id=$5`, [serverNote.revision, mutation.mutationId, serverNote.updatedAt, mutation.id, ownerId, mutation.body, mutation.title])
+  announceChange()
+}
+export async function acceptConflict(mutation: NoteMutation, serverNote: Note, ownerId = owner()) {
+  await ready()
+  await db.transaction(async tx => {
+    const current = await tx.query<Row>(`SELECT ${columns} FROM notes WHERE id=$1 AND owner_id=$2`, [mutation.id, ownerId])
+    const local = current.rows[0]
+    if (!local) return
+    // The newest edit wins the copy, including edits made while the request was in flight.
+    if (local.dirty) {
+      const suffix = ' (conflict copy)'
+      await tx.query(`INSERT INTO notes (id,title,body,revision,updated_at,dirty,mutation_id,base_revision,owner_id,tags)
+        VALUES ($1,$2,$3,0,$4,true,$5,0,$6,$7::text[])`,
+      [crypto.randomUUID(), `${local.title.slice(0, 500 - suffix.length)}${suffix}`, local.body,
+        new Date().toISOString(), crypto.randomUUID(), ownerId, local.tags])
+    }
+    await tx.query(`UPDATE notes SET title=$1,body=$2,revision=$3,updated_at=$4,deleted_at=$5,tags=$6::text[],
+      dirty=false,mutation_id=NULL,base_revision=$3,synced_body=$2,synced_title=$1
+      WHERE id=$7 AND owner_id=$8`,
+    [serverNote.title, serverNote.body, serverNote.revision, serverNote.updatedAt,
+      serverNote.deletedAt, serverNote.tags, serverNote.id, ownerId])
+  })
+  announceChange()
+}
+export async function receiveNote(note: Note, ownerId = owner()) {
+  await ready()
+  await db.query(`INSERT INTO notes (id,title,body,revision,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags,synced_body,synced_title)
+    VALUES ($1,$2,$3,$4,$5,$6,false,NULL,$4,$7,$8::text[],$3,$2)
+    ON CONFLICT (id) DO UPDATE SET title=$2,body=$3,revision=$4,updated_at=$5,deleted_at=$6,tags=$8::text[],
+      dirty=false,mutation_id=NULL,base_revision=$4,synced_body=$3,synced_title=$2
+    WHERE notes.owner_id=$7 AND notes.dirty = false AND notes.revision < $4`,
+    [note.id, note.title, note.body, note.revision, note.updatedAt, note.deletedAt, ownerId, note.tags])
+  announceChange()
+}
+export async function getCursor(ownerId = owner()) {
+  await ready()
+  const result = await db.query<{ value: string }>(`SELECT value FROM sync_state WHERE key=$1`, [`cursor:${ownerId}`])
+  return Number(result.rows[0]?.value ?? '0')
+}
+export async function setCursor(cursor: number, ownerId = owner()) {
+  await ready()
+  await db.query(`INSERT INTO sync_state(key,value) VALUES ($1,$2)
+    ON CONFLICT(key) DO UPDATE SET value=$2`, [`cursor:${ownerId}`, String(cursor)])
+}

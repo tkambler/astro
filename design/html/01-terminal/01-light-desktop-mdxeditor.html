@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal light — desktop, MDXEditor</title>
+
+<style>html,body{margin:0;padding:0;overflow:hidden}</style></head>
+<body>
+<div>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;background:#ffffff}
+a{color:#1f5fd0}a:hover{color:#16479e}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+
+
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; color: #1c1b19;">
+
+  <!-- omnibar -->
+  <div style="height: 76px; flex-shrink: 0; box-sizing: border-box; padding: 0 22px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #e2e0dc; background: #ffffff;">
+    <span style="font-size: 20px; font-weight: 700; color: #1f5fd0; line-height: 1;">&#10095;</span>
+    <label class="sr" for="omni">Search or create a note</label>
+    <input id="omni" type="text" value="hooks" style="flex-grow: 1; background: transparent; border: 0; outline: 0; color: #1c1b19; font-family: inherit; font-size: 22px; letter-spacing: -0.01em; padding: 0; caret-color: #1f5fd0;">
+    <span style="font-size: 12px; color: #66645e; letter-spacing: 0.06em;">4 MATCHES</span>
+    <span style="font-size: 11px; color: #56544f; border: 1px solid #e2e0dc; border-radius: 4px; padding: 5px 9px; background: #f7f6f3;">ESC to clear</span>
+    <button aria-label="Settings" style="width: 32px; height: 32px; border-radius: 4px; border: 1px solid #e2e0dc; background: #f7f6f3; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"></path></svg></button>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- sidebar -->
+    <div style="width: 396px; flex-shrink: 0; box-sizing: border-box; border-right: 1px solid #e2e0dc; display: flex; flex-direction: column; background: #f2f1ee;">
+      <div style="box-sizing: border-box; padding: 14px 22px 10px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; letter-spacing: 0.12em; color: #66645e;">
+        <span>RESULTS &#183; RANKED</span>
+        <span>MODIFIED &#8595;</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column;">
+
+        <div style="box-sizing: border-box; padding: 14px 22px; border-left: 3px solid #1f5fd0; background: rgba(31,95,208,0.07); display: flex; flex-direction: column; gap: 7px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #1c1b19;">useEffect cleanup gotchas</span>
+            <span style="font-size: 11px; color: #56544f;">2h</span>
+          </div>
+          <div style="font-size: 12.5px; line-height: 1.5; color: #56544f;">Returning a function from useEffect runs it before the next effect, not only on unmount&#8230;</div>
+          <div style="display: flex; gap: 6px;">
+            <span style="font-size: 10.5px; color: #1f5fd0; border: 1px solid rgba(31,95,208,0.25); border-radius: 3px; padding: 2px 6px;">react</span>
+            <span style="font-size: 10.5px; color: #56544f; border: 1px solid #e2e0dc; border-radius: 3px; padding: 2px 6px;">gotchas</span>
+          </div>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 14px 22px; border-left: 3px solid transparent; display: flex; flex-direction: column; gap: 7px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #2e2c28;">Custom hooks I keep rewriting</span>
+            <span style="font-size: 11px; color: #66645e;">Tue</span>
+          </div>
+          <div style="font-size: 12.5px; line-height: 1.5; color: #66645e;">useLocalStorage, usePrevious, useEventListener &#8212; move these into the shared package&#8230;</div>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 14px 22px; border-left: 3px solid transparent; display: flex; flex-direction: column; gap: 7px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #2e2c28;">Rewriting the settings panel</span>
+            <span style="font-size: 11px; color: #66645e;">Mar 4</span>
+          </div>
+          <div style="font-size: 12.5px; line-height: 1.5; color: #66645e;">Three hooks deep before anything renders. Flatten to one reducer and a context&#8230;</div>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 14px 22px; border-left: 3px solid transparent; display: flex; flex-direction: column; gap: 7px;">
+          <div style="display: flex; align-items: baseline; gap: 10px;">
+            <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #2e2c28;">Interview questions, frontend</span>
+            <span style="font-size: 11px; color: #66645e;">Feb 19</span>
+          </div>
+          <div style="font-size: 12.5px; line-height: 1.5; color: #66645e;">&#8220;Explain the rules of hooks and why they exist.&#8221; Follow up on stale closures&#8230;</div>
+        </div>
+
+        <div style="box-sizing: border-box; padding: 16px 22px; border-top: 1px dashed #e2e0dc; display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 14px; color: #1f5fd0;">+</span>
+          <span style="flex-grow: 1; font-size: 13.5px; color: #56544f;">Create note &#8220;<span style="color:#1c1b19;">hooks</span>&#8221;</span>
+          <span style="font-size: 10.5px; color: #66645e; border: 1px solid #e2e0dc; border-radius: 4px; padding: 3px 7px;">&#8984;&#8629;</span>
+        </div>
+
+      </div>
+
+      <div style="flex-grow: 1;"></div>
+
+      <div style="box-sizing: border-box; padding: 12px 22px; border-top: 1px solid #e2e0dc; display: flex; gap: 18px; font-size: 11px; color: #66645e;">
+        <span>&#8593;&#8595; move</span>
+        <span>&#8629; open</span>
+        <span>&#8984;K omnibar</span>
+        <span style="flex-grow: 1;"></span>
+        <span>842 notes</span>
+      </div>
+    </div>
+
+    <!-- editor: MDXEditor -->
+    <div style="flex-grow: 1; box-sizing: border-box; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="box-sizing: border-box; padding: 14px 32px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #ededea;">
+        <span style="font-size: 11px; color: #66645e; letter-spacing: 0.1em;">~/notes/react/useeffect-cleanup.md</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #66645e;">418 words</span>
+        <span style="font-size: 11px; color: #66645e;">saved 12s ago</span>
+      </div>
+
+      <!-- MDXEditor toolbar -->
+      <div style="box-sizing: border-box; padding: 7px 32px; background: #f7f6f3; border-bottom: 1px solid #e2e0dc; display: flex; align-items: center; gap: 4px;">
+
+        <button aria-label="Undo" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+        <button aria-label="Redo" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#66645e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 14l5-5-5-5"></path><path d="M20 9H10a6 6 0 0 0 0 12h3"></path></svg></button>
+
+        <span style="width: 1px; height: 20px; background: #e2e0dc; margin: 0 6px;"></span>
+
+        <label class="sr" for="blocktype">Block type</label>
+        <select id="blocktype" style="font-family: inherit; font-size: 12px; color: #2e2c28; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 4px; padding: 6px 8px; cursor: pointer;">
+          <option>Paragraph</option>
+          <option>Heading 1</option>
+          <option>Heading 2</option>
+          <option>Quote</option>
+        </select>
+
+        <span style="width: 1px; height: 20px; background: #e2e0dc; margin: 0 6px;"></span>
+
+        <button aria-label="Bold" aria-pressed="true" style="font-family: inherit; font-size: 13px; font-weight: 700; width: 30px; height: 30px; border-radius: 4px; border: 1px solid rgba(31,95,208,0.25); background: rgba(31,95,208,0.10); color: #1f5fd0; cursor: pointer;">B</button>
+        <button aria-label="Italic" style="font-family: inherit; font-size: 13px; font-style: italic; width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; color: #56544f; cursor: pointer;">I</button>
+        <button aria-label="Underline" style="font-family: inherit; font-size: 13px; text-decoration: underline; width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; color: #56544f; cursor: pointer;">U</button>
+        <button aria-label="Inline code" style="font-family: inherit; font-size: 12px; width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; color: #56544f; cursor: pointer;">&lt;/&gt;</button>
+
+        <span style="width: 1px; height: 20px; background: #e2e0dc; margin: 0 6px;"></span>
+
+        <button aria-label="Bulleted list" aria-pressed="true" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid rgba(31,95,208,0.25); background: rgba(31,95,208,0.10); cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1f5fd0" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"></path><circle cx="4.5" cy="6" r="1.3" fill="#1f5fd0" stroke="none"></circle><circle cx="4.5" cy="12" r="1.3" fill="#1f5fd0" stroke="none"></circle><circle cx="4.5" cy="18" r="1.3" fill="#1f5fd0" stroke="none"></circle></svg></button>
+        <button aria-label="Numbered list" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 5.5h1.4V9M3.4 18.5h2.4M3.4 15.6c.3-.6 2.4-.6 2.4.6 0 .9-2.4 1.5-2.4 2.3"></path></svg></button>
+        <button aria-label="Checklist" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10"></path><path d="M3 6.2l1.4 1.4L7 5"></path><path d="M3 15.8l1.4 1.4L7 14.6"></path></svg></button>
+
+        <span style="width: 1px; height: 20px; background: #e2e0dc; margin: 0 6px;"></span>
+
+        <button aria-label="Insert link" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 13a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-6-6l-1 1"></path><path d="M14 11a4 4 0 0 0-6-.5l-2 2a4 4 0 0 0 6 6l1-1"></path></svg></button>
+        <button aria-label="Insert image" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"></rect><circle cx="8.5" cy="10" r="1.6"></circle><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"></path></svg></button>
+        <button aria-label="Insert table" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="2"></rect><path d="M3 9.5h18M3 14.5h18M9 4.5v15M15 4.5v15"></path></svg></button>
+        <button aria-label="Insert code block" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 8.5L5 12l3.5 3.5M15.5 8.5L19 12l-3.5 3.5"></path></svg></button>
+        <button aria-label="Insert thematic break" style="width: 30px; height: 30px; border-radius: 4px; border: 1px solid transparent; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 12h18"></path><path d="M6 7h12M6 17h12" opacity="0.35"></path></svg></button>
+
+        <span style="flex-grow: 1;"></span>
+
+        <div style="display: flex; gap: 2px; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 5px; padding: 2px;">
+          <span style="font-size: 11px; letter-spacing: 0.06em; color: #ffffff; background: #1f5fd0; border-radius: 3px; padding: 5px 10px;">RICH</span>
+          <span style="font-size: 11px; letter-spacing: 0.06em; color: #56544f; padding: 5px 10px;">SOURCE</span>
+          <span style="font-size: 11px; letter-spacing: 0.06em; color: #56544f; padding: 5px 10px;">DIFF</span>
+        </div>
+      </div>
+
+      <!-- editable surface -->
+      <div style="flex-grow: 1; box-sizing: border-box; padding: 32px 32px 0; overflow: hidden;">
+        <div style="max-width: 720px; display: flex; flex-direction: column; gap: 18px;">
+
+          <h1 style="margin: 0; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; color: #1c1b19;">useEffect cleanup gotchas</h1>
+
+          <p style="margin: 0; font-size: 15px; line-height: 1.75; color: #2e2c28;">The cleanup function does not only run on unmount. React runs it before <strong style="background: rgba(31,95,208,0.18);">every re-run</strong><span style="display: inline-block; width: 2px; height: 17px; background: #1f5fd0; vertical-align: -3px; margin: 0 1px;"></span> of the effect, so anything the effect opened gets closed on each dependency change.</p>
+
+          <ul style="margin: 0; padding-left: 20px; font-size: 15px; line-height: 1.85; color: #2e2c28;">
+            <li>Stale closure over state &#8212; the cleanup captures the value from <em>its own</em> render.</li>
+            <li>Async effects that resolve after unmount. Guard with an <code style="font-size: 13.5px; color: #1f5fd0; background: rgba(31,95,208,0.07); border-radius: 3px; padding: 1px 5px;">ignore</code> flag.</li>
+            <li>Subscriptions keyed on an object literal, which is new every render.</li>
+          </ul>
+
+          <!-- MDXEditor code block node -->
+          <div style="box-sizing: border-box; border: 1px solid #e2e0dc; border-radius: 5px; overflow: hidden;">
+            <div style="box-sizing: border-box; padding: 7px 12px; background: #f7f6f3; border-bottom: 1px solid #e2e0dc; display: flex; align-items: center; gap: 10px;">
+              <label class="sr" for="lang">Code block language</label>
+              <select id="lang" style="font-family: inherit; font-size: 11px; color: #2e2c28; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 3px; padding: 3px 6px; cursor: pointer;">
+                <option>JavaScript</option>
+                <option>TypeScript</option>
+                <option>Shell</option>
+              </select>
+              <span style="flex-grow: 1;"></span>
+              <button aria-label="Copy code" style="width: 24px; height: 24px; border-radius: 3px; border: 1px solid #e2e0dc; background: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5h10"></path></svg></button>
+              <button aria-label="Delete code block" style="width: 24px; height: 24px; border-radius: 3px; border: 1px solid #e2e0dc; background: #ffffff; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+            </div>
+            <pre style="margin: 0; box-sizing: border-box; background: #ffffff; padding: 14px 16px; font-size: 13px; line-height: 1.7; color: #2e2c28; overflow: hidden;"><span style="color:#66645e;">1</span>  <span style="color:#56544f;">useEffect</span>(() =&gt; {
+<span style="color:#66645e;">2</span>    <span style="color:#56544f;">const</span> id = setInterval(tick, <span style="color:#1f5fd0;">1000</span>)
+<span style="color:#66645e;">3</span>    <span style="color:#66645e;">// runs before the next effect AND on unmount</span>
+<span style="color:#66645e;">4</span>    <span style="color:#56544f;">return</span> () =&gt; clearInterval(id)
+<span style="color:#66645e;">5</span>  }, [delay])</pre>
+          </div>
+
+          <p style="margin: 0; font-size: 15px; line-height: 1.75; color: #2e2c28;">See also <a href="#linked">custom hooks I keep rewriting</a> for the wrapper that fixes the third case.</p>
+        </div>
+      </div>
+
+      <div style="box-sizing: border-box; padding: 10px 32px; border-top: 1px solid #ededea; display: flex; align-items: center; gap: 16px; font-size: 11px; color: #66645e;">
+        <span>MDXEditor &#183; rich text</span>
+        <span>markdown + MDX</span>
+        <span style="flex-grow: 1;"></span>
+        <span>&#8984;&#8679;S source view</span>
+        <span>ln 4, col 28</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

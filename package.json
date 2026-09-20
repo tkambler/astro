@@ -1,0 +1,16 @@
+{
+  "name": "astronote",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.9.0",
+  "engines": { "node": ">=24" },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run build -w @astronote/browser-client && npm run dev -w @astronote/server",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "test": "turbo typecheck",
+    "test:integration": "npm run migrate -w @astronote/db && npm run test:integration -w @astronote/domain"
+  },
+  "devDependencies": {"turbo": "^2.11.2", "typescript": "^5.9.3"}
+}

@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal light — desktop, settings</title>
+
+<style>html,body{margin:0;padding:0;overflow:hidden}</style></head>
+<body>
+<div>
+
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;background:#ffffff}
+a{color:#1f5fd0}a:hover{color:#16479e}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+
+
+<div style="width: 1440px; height: 900px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; color: #1c1b19;">
+
+  <!-- omnibar -->
+  <div style="height: 76px; flex-shrink: 0; box-sizing: border-box; padding: 0 22px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #e2e0dc; background: #ffffff;">
+    <span style="font-size: 20px; font-weight: 700; color: #1f5fd0; line-height: 1;">&#10095;</span>
+    <label class="sr" for="omni">Search or create a note</label>
+    <input id="omni" type="text" placeholder="Search, or type a title to create&#8230;" style="flex-grow: 1; background: transparent; border: 0; outline: 0; color: #1c1b19; font-family: inherit; font-size: 22px; letter-spacing: -0.01em; padding: 0; caret-color: #1f5fd0;">
+    <span style="font-size: 11px; color: #56544f; border: 1px solid #e2e0dc; border-radius: 4px; padding: 5px 9px; background: #f7f6f3;">&#8984;K</span>
+    <button aria-label="Settings" aria-pressed="true" style="width: 32px; height: 32px; border-radius: 4px; border: 1px solid rgba(31,95,208,0.25); background: rgba(31,95,208,0.10); cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1f5fd0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"></path></svg></button>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+    <!-- sidebar: previews OFF, so rows are one line each -->
+    <div style="width: 396px; flex-shrink: 0; box-sizing: border-box; border-right: 1px solid #e2e0dc; display: flex; flex-direction: column; background: #f2f1ee;">
+      <div style="box-sizing: border-box; padding: 14px 22px 10px; display: flex; align-items: center; justify-content: space-between; font-size: 11px; letter-spacing: 0.12em; color: #66645e;">
+        <span>ALL NOTES</span>
+        <span>MODIFIED &#8595;</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column;">
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">useEffect cleanup gotchas</span>
+          <span style="font-size: 11px; color: #66645e;">2h</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Custom hooks I keep rewriting</span>
+          <span style="font-size: 11px; color: #66645e;">Tue</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Rewriting the settings panel</span>
+          <span style="font-size: 11px; color: #66645e;">Mar 4</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Interview questions, frontend</span>
+          <span style="font-size: 11px; color: #66645e;">Feb 19</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Tailwind arbitrary values</span>
+          <span style="font-size: 11px; color: #66645e;">Feb 11</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Postgres index notes</span>
+          <span style="font-size: 11px; color: #66645e;">Jan 30</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Reading list, spring</span>
+          <span style="font-size: 11px; color: #66645e;">Jan 22</span>
+        </div>
+        <div style="box-sizing: border-box; padding: 9px 22px; border-left: 3px solid transparent; display: flex; align-items: baseline; gap: 10px;">
+          <span style="flex-grow: 1; font-size: 14px; color: #2e2c28;">Gift ideas</span>
+          <span style="font-size: 11px; color: #66645e;">Jan 9</span>
+        </div>
+      </div>
+
+      <div style="flex-grow: 1;"></div>
+
+      <div style="box-sizing: border-box; padding: 12px 22px; border-top: 1px solid #e2e0dc; display: flex; gap: 18px; font-size: 11px; color: #66645e;">
+        <span>previews off</span>
+        <span style="flex-grow: 1;"></span>
+        <span>842 notes</span>
+      </div>
+    </div>
+
+    <!-- settings pane -->
+    <div style="flex-grow: 1; box-sizing: border-box; display: flex; flex-direction: column; min-width: 0;">
+
+      <div style="box-sizing: border-box; padding: 14px 32px; display: flex; align-items: center; gap: 14px; border-bottom: 1px solid #ededea;">
+        <span style="font-size: 11px; letter-spacing: 0.14em; color: #66645e;">SETTINGS</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 11px; color: #66645e;">changes save as you make them</span>
+        <span style="font-size: 10.5px; color: #66645e; border: 1px solid #e2e0dc; border-radius: 4px; padding: 3px 7px;">ESC to close</span>
+      </div>
+
+      <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+        <!-- section nav -->
+        <div style="width: 196px; flex-shrink: 0; box-sizing: border-box; border-right: 1px solid #ededea; padding: 16px 0; display: flex; flex-direction: column;">
+          <span style="box-sizing: border-box; padding: 8px 20px; font-size: 13px; color: #1f5fd0; border-left: 3px solid #1f5fd0; background: rgba(31,95,208,0.07);">Appearance</span>
+          <span style="box-sizing: border-box; padding: 8px 20px; font-size: 13px; color: #56544f; border-left: 3px solid transparent;">Editor</span>
+          <span style="box-sizing: border-box; padding: 8px 20px; font-size: 13px; color: #56544f; border-left: 3px solid transparent;">Omnibar</span>
+          <span style="box-sizing: border-box; padding: 8px 20px; font-size: 13px; color: #56544f; border-left: 3px solid transparent;">Files &amp; sync</span>
+          <span style="box-sizing: border-box; padding: 8px 20px; font-size: 13px; color: #56544f; border-left: 3px solid transparent;">Shortcuts</span>
+          <span style="box-sizing: border-box; padding: 8px 20px; font-size: 13px; color: #56544f; border-left: 3px solid transparent;">About</span>
+        </div>
+
+        <!-- section body -->
+        <div style="flex-grow: 1; box-sizing: border-box; padding: 26px 40px 0; overflow: hidden; min-width: 0;">
+          <div style="max-width: 660px; display: flex; flex-direction: column; gap: 26px;">
+
+            <!-- THEME -->
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <div style="display: flex; flex-direction: column; gap: 4px;">
+                <span style="font-size: 11px; letter-spacing: 0.14em; color: #66645e;">THEME</span>
+                <span style="font-size: 12.5px; line-height: 1.5; color: #56544f;">Applies to every window. System follows your OS setting and switches at sunset.</span>
+              </div>
+
+              <div style="display: flex; gap: 12px;">
+
+                <label style="flex-grow: 1; box-sizing: border-box; border: 1px solid #1f5fd0; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 10px; background: rgba(31,95,208,0.07); cursor: pointer;">
+                  <span style="box-sizing: border-box; height: 74px; border-radius: 4px; border: 1px solid #e2e0dc; background: #fcfcfb; display: flex; overflow: hidden;">
+                    <span style="width: 34%; background: #eceae6; border-right: 1px solid #e0ddd7; display: flex; flex-direction: column; gap: 5px; padding: 8px 6px;">
+                      <span style="height: 4px; border-radius: 2px; background: #2f6ee0;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #c9c6c0;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #c9c6c0;"></span>
+                    </span>
+                    <span style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                      <span style="height: 6px; width: 60%; border-radius: 2px; background: #b8b5ae;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #dcd9d3;"></span>
+                      <span style="height: 4px; width: 80%; border-radius: 2px; background: #dcd9d3;"></span>
+                    </span>
+                  </span>
+                  <span style="display: flex; align-items: center; gap: 8px;">
+                    <input type="radio" name="theme" checked style="width: 15px; height: 15px; accent-color: #1f5fd0; margin: 0;">
+                    <span style="font-size: 13px; color: #1c1b19;">Light</span>
+                  </span>
+                </label>
+
+                <label style="flex-grow: 1; box-sizing: border-box; border: 1px solid #e2e0dc; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 10px; cursor: pointer;">
+                  <span style="box-sizing: border-box; height: 74px; border-radius: 4px; border: 1px solid #e2e0dc; background: #14171d; display: flex; overflow: hidden;">
+                    <span style="width: 34%; background: #1e222a; border-right: 1px solid #262a33; display: flex; flex-direction: column; gap: 5px; padding: 8px 6px;">
+                      <span style="height: 4px; border-radius: 2px; background: #7fc3a4;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #3a404b;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #3a404b;"></span>
+                    </span>
+                    <span style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                      <span style="height: 6px; width: 60%; border-radius: 2px; background: #4d5462;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #2b303a;"></span>
+                      <span style="height: 4px; width: 80%; border-radius: 2px; background: #2b303a;"></span>
+                    </span>
+                  </span>
+                  <span style="display: flex; align-items: center; gap: 8px;">
+                    <input type="radio" name="theme" style="width: 15px; height: 15px; accent-color: #1f5fd0; margin: 0;">
+                    <span style="font-size: 13px; color: #2e2c28;">Dark</span>
+                  </span>
+                </label>
+
+                <label style="flex-grow: 1; box-sizing: border-box; border: 1px solid #e2e0dc; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 10px; cursor: pointer;">
+                  <span style="box-sizing: border-box; height: 74px; border-radius: 4px; border: 1px solid #e2e0dc; display: flex; overflow: hidden;">
+                    <span style="width: 50%; background: #fcfcfb; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                      <span style="height: 6px; width: 70%; border-radius: 2px; background: #2f6ee0;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #dcd9d3;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #dcd9d3;"></span>
+                    </span>
+                    <span style="width: 50%; background: #14171d; display: flex; flex-direction: column; gap: 6px; padding: 8px;">
+                      <span style="height: 6px; width: 70%; border-radius: 2px; background: #7fc3a4;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #2b303a;"></span>
+                      <span style="height: 4px; border-radius: 2px; background: #2b303a;"></span>
+                    </span>
+                  </span>
+                  <span style="display: flex; align-items: center; gap: 8px;">
+                    <input type="radio" name="theme" style="width: 15px; height: 15px; accent-color: #1f5fd0; margin: 0;">
+                    <span style="font-size: 13px; color: #2e2c28;">System</span>
+                  </span>
+                </label>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <span style="font-size: 12.5px; color: #56544f;">Accent</span>
+                <label style="display: flex; align-items: center; gap: 7px; cursor: pointer;"><input type="radio" name="accent" checked style="width: 14px; height: 14px; accent-color: #1f5fd0; margin: 0;"><span style="width: 15px; height: 15px; border-radius: 3px; background: #2f6ee0;"></span><span class="sr">Cobalt</span></label>
+                <label style="display: flex; align-items: center; gap: 7px; cursor: pointer;"><input type="radio" name="accent" style="width: 14px; height: 14px; accent-color: #1f5fd0; margin: 0;"><span style="width: 15px; height: 15px; border-radius: 3px; background: #7fc3a4;"></span><span class="sr">Sage</span></label>
+                <label style="display: flex; align-items: center; gap: 7px; cursor: pointer;"><input type="radio" name="accent" style="width: 14px; height: 14px; accent-color: #1f5fd0; margin: 0;"><span style="width: 15px; height: 15px; border-radius: 3px; background: #e0a02f;"></span><span class="sr">Amber</span></label>
+                <label style="display: flex; align-items: center; gap: 7px; cursor: pointer;"><input type="radio" name="accent" style="width: 14px; height: 14px; accent-color: #1f5fd0; margin: 0;"><span style="width: 15px; height: 15px; border-radius: 3px; background: #d2705f;"></span><span class="sr">Rose</span></label>
+              </div>
+            </div>
+
+            <div style="height: 1px; background: #ededea;"></div>
+
+            <!-- SIDEBAR -->
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <span style="font-size: 11px; letter-spacing: 0.14em; color: #66645e;">SIDEBAR</span>
+
+              <label style="display: flex; align-items: flex-start; gap: 14px; cursor: pointer;">
+                <input type="checkbox" class="sr">
+                <span style="flex-shrink: 0; width: 42px; height: 24px; border-radius: 12px; background: #e2e0dc; border: 1px solid #e2e0dc; display: flex; align-items: center; padding: 2px; box-sizing: border-box;">
+                  <span style="width: 18px; height: 18px; border-radius: 9px; background: #ffffff;"></span>
+                </span>
+                <span style="display: flex; flex-direction: column; gap: 3px;">
+                  <span style="font-size: 14px; color: #1c1b19;">Show note previews</span>
+                  <span style="font-size: 12.5px; line-height: 1.5; color: #56544f;">Off &#8212; the list shows titles and dates only, so twice as many notes fit on screen. On, each row carries two lines of body text.</span>
+                </span>
+              </label>
+
+              <div style="display: flex; align-items: center; gap: 14px; opacity: 0.45;">
+                <label for="lines" style="font-size: 13px; color: #56544f; width: 150px;">Preview lines</label>
+                <select id="lines" disabled style="font-family: inherit; font-size: 12.5px; color: #2e2c28; background: #f7f6f3; border: 1px solid #e2e0dc; border-radius: 4px; padding: 6px 9px;">
+                  <option>2 lines</option>
+                </select>
+              </div>
+
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <label for="sort" style="font-size: 13px; color: #56544f; width: 150px;">Sort notes by</label>
+                <select id="sort" style="font-family: inherit; font-size: 12.5px; color: #2e2c28; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 4px; padding: 6px 9px; cursor: pointer;">
+                  <option>Date modified</option>
+                  <option>Date created</option>
+                  <option>Title</option>
+                  <option>Search relevance</option>
+                </select>
+              </div>
+
+              <label style="display: flex; align-items: center; gap: 14px; cursor: pointer;">
+                <input type="checkbox" checked style="width: 16px; height: 16px; accent-color: #1f5fd0; margin: 0;">
+                <span style="font-size: 14px; color: #1c1b19;">Show tags on each row</span>
+              </label>
+            </div>
+
+            <div style="height: 1px; background: #ededea;"></div>
+
+            <!-- TYPOGRAPHY -->
+            <div style="display: flex; flex-direction: column; gap: 14px;">
+              <span style="font-size: 11px; letter-spacing: 0.14em; color: #66645e;">TYPOGRAPHY</span>
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <label for="size" style="font-size: 13px; color: #56544f; width: 150px;">Editor text size</label>
+                <select id="size" style="font-family: inherit; font-size: 12.5px; color: #2e2c28; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 4px; padding: 6px 9px; cursor: pointer;">
+                  <option>15 px</option>
+                  <option>16 px</option>
+                  <option>17 px</option>
+                </select>
+              </div>
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <label for="measure" style="font-size: 13px; color: #56544f; width: 150px;">Line length</label>
+                <select id="measure" style="font-family: inherit; font-size: 12.5px; color: #2e2c28; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 4px; padding: 6px 9px; cursor: pointer;">
+                  <option>720 px</option>
+                  <option>860 px</option>
+                  <option>Full width</option>
+                </select>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

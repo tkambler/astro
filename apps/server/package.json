@@ -1,0 +1,21 @@
+{
+  "name": "@astronote/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --noEmit -p tsconfig.json && esbuild src/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --external:express --external:knex --external:pg --external:emittery --external:pino --external:zod",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@astronote/domain": "*", "@astronote/events": "*", "@astronote/log": "*",
+    "@astronote/schemas": "*", "express": "^5.1.0", "knex": "^3.1.0",
+    "pg": "^8.16.0", "emittery": "^1.2.0", "pino": "^9.0.0", "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0", "@types/node": "^24.0.0", "esbuild": "^0.28.2",
+    "tsx": "^4.20.0", "typescript": "^5.9.3"
+  }
+}

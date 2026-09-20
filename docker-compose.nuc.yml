@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: astronote
+      POSTGRES_USER: astronote
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U astronote -d astronote"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    image: astronote:nuc
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: postgres://astronote:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/astronote
+      TRUST_PROXY_HOPS: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      database:
+      proxy:
+        aliases:
+          - astronote-app
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  database:
+    internal: true
+  proxy:
+    external: true
+    name: services_default
+
+volumes:
+  postgres_data:

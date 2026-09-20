@@ -1,0 +1,1 @@
+{"name":"@astronote/domain","version":"0.0.0","type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit -p tsconfig.json","test:integration":"tsx --test test/*.test.ts"},"dependencies":{"@astronote/db":"*","@astronote/schemas":"*","knex":"^3.1.0"},"devDependencies":{"tsx":"^4.20.0","typescript":"^5.9.3"}}

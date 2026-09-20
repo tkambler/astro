@@ -1,0 +1,1 @@
+{"name":"@astronote/events","version":"0.0.0","type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit -p tsconfig.json"},"dependencies":{"emittery":"^1.2.0"},"devDependencies":{"typescript":"^5.9.3"}}

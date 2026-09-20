@@ -1,0 +1,87 @@
+/* Notes — design 01 "Terminal"
+ *
+ * The eleven values below are the whole palette. Light and dark are a strict
+ * one-to-one swap: every role keeps its meaning, only the value changes.
+ * The mockups in ./mockups were drawn with these exact values (inline, since
+ * each artboard is a standalone file); this sheet is the same set, named.
+ */
+
+:root {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* surfaces */
+  --bg: #ffffff;           /* page, editor surface, primary-button text */
+  --bg-chrome: #f2f1ee;    /* sidebar, mobile bottom bar */
+  --bg-raised: #f7f6f3;    /* toolbar, code block, key chips */
+
+  /* lines */
+  --line: #e2e0dc;         /* structural hairline */
+  --line-faint: #ededea;   /* within-pane divider */
+
+  /* text */
+  --text: #1c1b19;         /* headings, selected row, values */
+  --text-body: #2e2c28;    /* body copy, unselected titles */
+  --text-secondary: #56544f;
+  --text-muted: #66645e;   /* metadata, labels — 4.5:1 on both grounds */
+
+  /* accent */
+  --accent: #1f5fd0;
+  --accent-hover: #16479e;
+  --accent-tint: rgba(31, 95, 208, 0.07);   /* selected row */
+  --accent-tint-strong: rgba(31, 95, 208, 0.10); /* pressed toolbar button */
+  --accent-selection: rgba(31, 95, 208, 0.18);   /* text selection */
+  --accent-border: rgba(31, 95, 208, 0.25);
+}
+
+:root[data-theme="dark"] {
+  --bg: #13151a;
+  --bg-chrome: #171a20;
+  --bg-raised: #1b1f26;
+
+  --line: #2b3039;
+  --line-faint: #262a33;
+
+  --text: #f2f0ec;
+  --text-body: #cfcdc8;
+  --text-secondary: #9aa0ad;
+  --text-muted: #8e94a1;
+
+  --accent: #86c8a8;
+  --accent-hover: #a9dcc4;
+  --accent-tint: rgba(134, 200, 168, 0.10);
+  --accent-tint-strong: rgba(134, 200, 168, 0.14);
+  --accent-selection: rgba(134, 200, 168, 0.22);
+  --accent-border: rgba(134, 200, 168, 0.32);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #13151a;
+    --bg-chrome: #171a20;
+    --bg-raised: #1b1f26;
+
+    --line: #2b3039;
+    --line-faint: #262a33;
+
+    --text: #f2f0ec;
+    --text-body: #cfcdc8;
+    --text-secondary: #9aa0ad;
+    --text-muted: #8e94a1;
+
+    --accent: #86c8a8;
+    --accent-hover: #a9dcc4;
+    --accent-tint: rgba(134, 200, 168, 0.10);
+    --accent-tint-strong: rgba(134, 200, 168, 0.14);
+    --accent-selection: rgba(134, 200, 168, 0.22);
+    --accent-border: rgba(134, 200, 168, 0.32);
+  }
+}
+
+/* Accent options offered in Settings › Appearance. These stay fixed across
+ * themes — they are the swatches themselves, not themed surfaces. */
+:root {
+  --swatch-cobalt: #2f6ee0;
+  --swatch-sage:   #7fc3a4;
+  --swatch-amber:  #e0a02f;
+  --swatch-rose:   #d2705f;
+}

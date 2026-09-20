@@ -1,0 +1,59 @@
+import { database } from '@astronote/db'
+import type { Note, NoteMutation, PushResult, PullResult } from '@astronote/schemas'
+
+type Row = { id: string; title: string; body: string; tags: string[]; revision: number; updated_at: Date; deleted_at: Date | null }
+function toNote(row: Row): Note {
+  return { id: row.id, title: row.title, body: row.body, tags: row.tags, revision: row.revision,
+    updatedAt: row.updated_at.toISOString(), deletedAt: row.deleted_at?.toISOString() ?? null }
+}
+
+/** Applies each mutation once, using a server revision as the conflict boundary. */
+export async function pushNotes(userId: string, mutations: NoteMutation[]): Promise<PushResult> {
+  const results: PushResult['results'] = []
+  for (const mutation of mutations) {
+    const result = await database().transaction(async tx => {
+      // Serialize change sequence allocation so pull cursors cannot skip late commits.
+      await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
+      const previous = await tx('note_mutations').where({ id: mutation.mutationId, user_id: userId }).first()
+      const current = await tx('notes').where({ id: mutation.id, user_id: userId }).first<Row>()
+      if (previous) {
+        if (!current) throw new Error('Applied mutation has no note')
+        if (current.revision > mutation.baseRevision + 1) {
+          return { status: 'conflict' as const, mutationId: mutation.mutationId, serverNote: toNote(current) }
+        }
+        return { status: 'applied' as const, mutationId: mutation.mutationId, note: toNote(current) }
+      }
+      if ((current?.revision ?? 0) !== mutation.baseRevision) {
+        if (!current) throw new Error('Conflict without server note')
+        return { status: 'conflict' as const, mutationId: mutation.mutationId, serverNote: toNote(current) }
+      }
+      const now = new Date()
+      const revision = mutation.baseRevision + 1
+      const data = { id: mutation.id, title: mutation.title, body: mutation.body, tags: mutation.tags,
+        revision, updated_at: now, deleted_at: mutation.deleted ? now : null }
+      if (current) await tx('notes').where({ id: mutation.id, user_id: userId }).update(data)
+      else await tx('notes').insert({ ...data, user_id: userId })
+      await tx('note_changes').insert({ note_id: mutation.id, user_id: userId, revision })
+      await tx('note_mutations').insert({ id: mutation.mutationId, note_id: mutation.id, user_id: userId })
+      return { status: 'applied' as const, mutationId: mutation.mutationId, note: toNote(data) }
+    })
+    results.push(result)
+  }
+  return { results }
+}
+
+/** Returns a bounded change page, including tombstones, after the given cursor. */
+export async function pullNotes(userId: string, cursor: number, limit = 100): Promise<PullResult> {
+  const db = database()
+  const rows = await db('note_changes as changes')
+    .join('notes as notes', 'notes.id', 'changes.note_id')
+    .where('changes.sequence', '>', cursor)
+    .andWhere('changes.user_id', userId)
+    .orderBy('changes.sequence', 'asc')
+    .limit(limit + 1)
+    .select('changes.sequence', 'notes.id', 'notes.title', 'notes.body', 'notes.tags',
+      'notes.revision', 'notes.updated_at', 'notes.deleted_at') as (Row & { sequence: string })[]
+  const page = rows.slice(0, limit)
+  return { changes: page.map(toNote), cursor: page.length ? Number(page[page.length - 1]!.sequence) : cursor,
+    hasMore: rows.length > limit }
+}

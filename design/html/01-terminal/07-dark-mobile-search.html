@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal dark — mobile, omnibar and results</title>
+
+<style>html,body{margin:0;padding:0;overflow:hidden}</style></head>
+<body>
+<div>
+
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;background:#13151a}
+a{color:#86c8a8}a:hover{color:#a9dcc4}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+
+
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #13151a; color: #f2f0ec;">
+
+  <div style="box-sizing: border-box; padding: 54px 18px 0; display: flex; align-items: baseline; gap: 10px;">
+    <span style="font-size: 13px; letter-spacing: 0.14em; color: #8e94a1;">NOTES</span>
+    <span style="flex-grow: 1;"></span>
+    <span style="font-size: 11px; color: #8e94a1;">842</span>
+  </div>
+
+  <!-- omnibar -->
+  <div style="box-sizing: border-box; margin: 14px 18px 0; padding: 0 14px; height: 52px; display: flex; align-items: center; gap: 10px; background: #1b1f26; border: 1px solid #2b3039; border-radius: 8px;">
+    <span style="font-size: 15px; font-weight: 700; color: #86c8a8;">&#10095;</span>
+    <label class="sr" for="m1">Search or create a note</label>
+    <input id="m1" type="text" value="hooks" style="flex-grow: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: #f2f0ec; font-family: inherit; font-size: 17px; padding: 0; caret-color: #86c8a8;">
+    <button aria-label="Clear search" style="font-family: inherit; font-size: 15px; line-height: 1; color: #9aa0ad; background: #13151a; border: 1px solid #2b3039; border-radius: 6px; width: 30px; height: 30px; cursor: pointer;">&#215;</button>
+  </div>
+
+  <div style="box-sizing: border-box; padding: 18px 18px 8px; font-size: 10.5px; letter-spacing: 0.12em; color: #8e94a1;">4 MATCHES &#183; MODIFIED &#8595;</div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+
+    <div style="box-sizing: border-box; padding: 14px 18px; border-left: 3px solid #86c8a8; background: rgba(134,200,168,0.10); display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #f2f0ec;">useEffect cleanup gotchas</span>
+        <span style="font-size: 11px; color: #9aa0ad;">2h</span>
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.5; color: #9aa0ad;">Returning a function from useEffect runs it before the next effect&#8230;</div>
+    </div>
+
+    <div style="box-sizing: border-box; padding: 14px 18px; border-left: 3px solid transparent; border-top: 1px solid #262a33; display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #cfcdc8;">Custom hooks I keep rewriting</span>
+        <span style="font-size: 11px; color: #8e94a1;">Tue</span>
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.5; color: #8e94a1;">useLocalStorage, usePrevious, useEventListener &#8212; move these&#8230;</div>
+    </div>
+
+    <div style="box-sizing: border-box; padding: 14px 18px; border-left: 3px solid transparent; border-top: 1px solid #262a33; display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #cfcdc8;">Rewriting the settings panel</span>
+        <span style="font-size: 11px; color: #8e94a1;">Mar 4</span>
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.5; color: #8e94a1;">Three hooks deep before anything renders. Flatten to one reducer&#8230;</div>
+    </div>
+
+    <div style="box-sizing: border-box; padding: 14px 18px; border-left: 3px solid transparent; border-top: 1px solid #262a33; display: flex; flex-direction: column; gap: 6px;">
+      <div style="display: flex; align-items: baseline; gap: 10px;">
+        <span style="flex-grow: 1; font-size: 15px; font-weight: 500; color: #cfcdc8;">Interview questions, frontend</span>
+        <span style="font-size: 11px; color: #8e94a1;">Feb 19</span>
+      </div>
+      <div style="font-size: 12.5px; line-height: 1.5; color: #8e94a1;">&#8220;Explain the rules of hooks and why they exist.&#8221;&#8230;</div>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <!-- create row sits on the keyboard line -->
+    <div style="box-sizing: border-box; margin: 0 18px 12px; padding: 16px 16px; border: 1px dashed rgba(134,200,168,0.32); border-radius: 8px; display: flex; align-items: center; gap: 10px; background: #1b1f26;">
+      <span style="font-size: 16px; color: #86c8a8;">+</span>
+      <span style="flex-grow: 1; font-size: 14px; color: #9aa0ad;">Create &#8220;<span style="color:#f2f0ec;">hooks</span>&#8221;</span>
+      <span style="font-size: 10.5px; color: #8e94a1;">hold to pin</span>
+    </div>
+  </div>
+
+  <!-- bottom bar: thumb-reachable -->
+  <div style="box-sizing: border-box; height: 84px; flex-shrink: 0; padding: 0 18px 22px; border-top: 1px solid #2b3039; background: #171a20; display: flex; align-items: center; gap: 12px;">
+    <button style="font-family: inherit; height: 46px; padding: 0 16px; font-size: 12px; letter-spacing: 0.08em; color: #9aa0ad; background: transparent; border: 1px solid #2b3039; border-radius: 8px; cursor: pointer;">ALL</button>
+    <button style="font-family: inherit; height: 46px; padding: 0 16px; font-size: 12px; letter-spacing: 0.08em; color: #9aa0ad; background: transparent; border: 1px solid #2b3039; border-radius: 8px; cursor: pointer;">TAGS</button>
+    <span style="flex-grow: 1;"></span>
+    <button style="font-family: inherit; height: 46px; padding: 0 20px; font-size: 13px; font-weight: 700; color: #13151a; background: #86c8a8; border: 0; border-radius: 8px; cursor: pointer;">NEW &#10095;</button>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

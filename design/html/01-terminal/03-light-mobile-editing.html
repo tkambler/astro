@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Terminal light — mobile, MDXEditor</title>
+
+<style>html,body{margin:0;padding:0;overflow:hidden}</style></head>
+<body>
+<div>
+
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;background:#ffffff}
+a{color:#1f5fd0}a:hover{color:#16479e}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+
+
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; color: #1c1b19;">
+
+  <div style="box-sizing: border-box; padding: 54px 18px 12px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #e2e0dc;">
+    <button style="font-family: inherit; font-size: 13px; color: #1f5fd0; background: transparent; border: 0; padding: 0; cursor: pointer;">&#10094; results</button>
+    <span style="flex-grow: 1;"></span>
+    <span style="font-size: 10.5px; color: #66645e;">saved</span>
+    <button aria-label="Note actions" style="font-family: inherit; font-size: 15px; color: #56544f; background: transparent; border: 0; padding: 0 6px; cursor: pointer;">&#8943;</button>
+  </div>
+
+  <div style="flex-grow: 1; box-sizing: border-box; padding: 20px 18px 0; overflow: hidden; display: flex; flex-direction: column; gap: 16px;">
+    <h1 style="margin: 0; font-size: 23px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; color: #1c1b19;">useEffect cleanup gotchas</h1>
+
+    <div style="display: flex; gap: 6px;">
+      <span style="font-size: 10.5px; color: #1f5fd0; border: 1px solid rgba(31,95,208,0.25); border-radius: 3px; padding: 3px 7px;">react</span>
+      <span style="font-size: 10.5px; color: #56544f; border: 1px solid #e2e0dc; border-radius: 3px; padding: 3px 7px;">gotchas</span>
+    </div>
+
+    <p style="margin: 0; font-size: 14.5px; line-height: 1.75; color: #2e2c28;">The cleanup function does not only run on unmount. React runs it before <strong style="background: rgba(31,95,208,0.18);">every re-run</strong><span style="display: inline-block; width: 2px; height: 16px; background: #1f5fd0; vertical-align: -3px; margin: 0 1px;"></span> of the effect.</p>
+
+    <ul style="margin: 0; padding-left: 18px; font-size: 14.5px; line-height: 1.8; color: #2e2c28;">
+      <li>Stale closures over state.</li>
+      <li>Async effects resolving after unmount.</li>
+    </ul>
+
+    <div style="box-sizing: border-box; border: 1px solid #e2e0dc; border-radius: 5px; overflow: hidden;">
+      <div style="box-sizing: border-box; padding: 6px 10px; background: #f7f6f3; border-bottom: 1px solid #e2e0dc; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 10.5px; color: #56544f;">JavaScript</span>
+        <span style="flex-grow: 1;"></span>
+        <span style="font-size: 10.5px; color: #66645e;">tap to edit</span>
+      </div>
+      <pre style="margin: 0; box-sizing: border-box; background: #ffffff; padding: 12px; font-size: 11.5px; line-height: 1.7; color: #2e2c28; overflow: hidden;"><span style="color:#56544f;">useEffect</span>(() =&gt; {
+  <span style="color:#56544f;">const</span> id = setInterval(tick, <span style="color:#1f5fd0;">1000</span>)
+  <span style="color:#56544f;">return</span> () =&gt; clearInterval(id)
+}, [delay])</pre>
+    </div>
+  </div>
+
+  <!-- MDXEditor toolbar, above the keyboard -->
+  <div style="box-sizing: border-box; flex-shrink: 0; padding: 8px 12px; background: #f7f6f3; border-top: 1px solid #e2e0dc; display: flex; align-items: center; gap: 3px;">
+    <button aria-label="Undo" style="width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+    <button aria-label="Bold" aria-pressed="true" style="font-family: inherit; font-size: 14px; font-weight: 700; width: 44px; height: 44px; border-radius: 6px; border: 1px solid rgba(31,95,208,0.25); background: rgba(31,95,208,0.10); color: #1f5fd0; cursor: pointer;">B</button>
+    <button aria-label="Italic" style="font-family: inherit; font-size: 14px; font-style: italic; width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; color: #56544f; cursor: pointer;">I</button>
+    <button aria-label="Inline code" style="font-family: inherit; font-size: 12px; width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; color: #56544f; cursor: pointer;">&lt;/&gt;</button>
+    <button aria-label="Bulleted list" style="width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"></path><circle cx="4.5" cy="6" r="1.3" fill="#56544f" stroke="none"></circle><circle cx="4.5" cy="12" r="1.3" fill="#56544f" stroke="none"></circle><circle cx="4.5" cy="18" r="1.3" fill="#56544f" stroke="none"></circle></svg></button>
+    <button aria-label="Insert link" style="width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; cursor: pointer; display: flex; align-items: center; justify-content: center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#56544f" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10 13a4 4 0 0 0 6 .5l2-2a4 4 0 0 0-6-6l-1 1"></path><path d="M14 11a4 4 0 0 0-6-.5l-2 2a4 4 0 0 0 6 6l1-1"></path></svg></button>
+    <span style="flex-grow: 1;"></span>
+    <button aria-label="More formatting" style="font-family: inherit; font-size: 15px; width: 44px; height: 44px; border-radius: 6px; border: 0; background: transparent; color: #56544f; cursor: pointer;">&#8943;</button>
+  </div>
+
+  <div style="box-sizing: border-box; height: 84px; flex-shrink: 0; padding: 0 18px 22px; border-top: 1px solid #e2e0dc; background: #f2f1ee; display: flex; align-items: center; gap: 12px;">
+    <span style="flex-grow: 1; font-size: 10.5px; color: #66645e;">MDXEditor &#183; rich text</span>
+    <button style="font-family: inherit; height: 46px; padding: 0 16px; font-size: 12px; letter-spacing: 0.06em; color: #2e2c28; background: #ffffff; border: 1px solid #e2e0dc; border-radius: 8px; cursor: pointer;">SOURCE</button>
+    <button style="font-family: inherit; height: 46px; padding: 0 20px; font-size: 13px; font-weight: 700; color: #ffffff; background: #1f5fd0; border: 0; border-radius: 8px; cursor: pointer;">DONE</button>
+  </div>
+</div>
+</div>
+
+</body>
+</html>
