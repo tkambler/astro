@@ -4,10 +4,11 @@ An offline-first note app. The browser stores notes and pending edits in PGlite'
 
 ## Run locally
 
-1. Use Node 24 or newer. Start PostgreSQL and create an empty `astronote` database.
-2. Set `DATABASE_URL`, for example `postgres://localhost:5432/astronote`.
-3. Run `npm install`, `npm run migrate -w @astronote/db`, and `npm run dev`.
-4. Open `http://localhost:3001`. The API server serves the built frontend and `/api/...` on this port.
+1. Use Node 24 or newer, and install Docker.
+2. Run `npm install` and `npm run dev`. The dev command starts an isolated PostgreSQL container on a free localhost port and applies migrations. To use an existing PostgreSQL database instead, set `DATABASE_URL` before running it.
+3. Open `http://localhost:3001`. The API server serves the built frontend and `/api/...` on this port.
+
+Stop the local database with `docker compose -f docker-compose.dev.yml down`. Its notes remain in a dedicated Docker volume for the next run.
 
 `npm run dev` builds the frontend once, then starts the API server in watch mode. Frontend changes require `npm run build` and a browser refresh; the API server serves the updated files without a restart. The offline service worker may need one more refresh to activate the new build.
 

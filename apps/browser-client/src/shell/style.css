@@ -10,7 +10,7 @@ body, button, input, textarea { font-family: var(--font-mono); }
 body { color: var(--text); background: var(--bg); }
 button { cursor: pointer; }
 .app { display: flex; flex-direction: column; height: 100dvh; min-height: 0; background: var(--bg); }
-.omnibar { height: 76px; flex: none; display: flex; align-items: center; gap: 14px; padding: 0 22px; border-bottom: 1px solid var(--line); }
+.omnibar { height: 66px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--line); }
 .prompt { display: flex; flex: none; align-items: center; justify-content: center; width: 20px; height: 20px; color: var(--accent); }
 .prompt svg { display: block; width: 20px; height: 20px; }
 .omnibar input { flex: 1; min-width: 0; border: 0; outline: 0; color: var(--text); background: transparent; font-size: 22px; letter-spacing: -.01em; caret-color: var(--accent); }
@@ -38,9 +38,9 @@ button { cursor: pointer; }
 @supports (-moz-appearance: none) {
   .results { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-muted) 42%, var(--bg-chrome)) transparent; }
 }
-.result { display: flex; width: 100%; flex-direction: column; gap: 7px; text-align: left; padding: 14px 22px; background: transparent; border: 0; border-left: 3px solid transparent; color: var(--text-body); }
+.result { display: flex; width: 100%; flex-direction: column; gap: 7px; text-align: left; padding: 14px 22px; background: transparent; border: 0; color: var(--text-body); }
 .result:hover { background: var(--accent-tint); }
-.result.selected { border-left-color: var(--accent); background: var(--accent-tint); color: var(--text); }
+.result.selected { box-shadow: inset 3px 0 var(--accent); background: var(--accent-tint); color: var(--text); }
 .result-line { display: flex; gap: 10px; align-items: center; width: 100%; }
 .result-line strong { flex: 1; min-width: 0; font-size: 15px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .result-sync { flex: none; width: 17px; height: 17px; color: var(--accent); }
@@ -153,8 +153,8 @@ button { cursor: pointer; }
   .omnibar .icon-button, .omnibar-shortcut { display: none; }
   .mobile-detail > .omnibar, .mobile-detail > .mobile-list-heading { display: none; }
   .sidebar { max-width: none; width: 100%; }.mobile-hidden { display: none; }
-  .sidebar-heading { padding: 14px 18px 10px; border-bottom: 1px solid var(--line); letter-spacing: .16em; }.result { padding: 18px; border-left-width: 3px; border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, var(--text-muted)); }.sidebar-footer { display: none; }
-  .result:hover, .result.selected { background: transparent; border-left-color: transparent; color: var(--text-body); }
+  .sidebar-heading { padding: 14px 18px 10px; border-bottom: 1px solid var(--line); letter-spacing: .16em; }.result { padding: 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, var(--text-muted)); }.sidebar-footer { display: none; }
+  .result:hover, .result.selected { background: transparent; box-shadow: none; color: var(--text-body); }
   .result:active { background: var(--accent-tint); }
   .result:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .create-row { display: none; }

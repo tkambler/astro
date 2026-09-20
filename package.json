@@ -6,7 +6,7 @@
   "engines": { "node": ">=24" },
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "npm run build -w @astronote/browser-client && npm run dev -w @astronote/server",
+    "dev": "sh ./scripts/dev.sh",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo typecheck && node --test apps/browser-client/test/*.test.ts",
