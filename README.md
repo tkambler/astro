@@ -11,6 +11,8 @@ An offline-first note app. The browser stores notes and pending edits in PGlite'
 
 `npm run dev` builds the frontend once, then starts the API server in watch mode. Frontend changes require `npm run build` and a browser refresh; the API server serves the updated files without a restart. The offline service worker may need one more refresh to activate the new build.
 
+In Settings → Files & sync, import one or more UTF-8 `.md` or `.txt` files as new notes. YAML frontmatter can supply `title`, `tags`, `createdAt`, and `updatedAt`; otherwise the filename supplies the title. The file contents, including frontmatter, remain in the note body. Imports are saved on this device first and sync when an account is connected and the server is reachable. Run database migrations before starting an updated server so imported creation dates can sync.
+
 For a production build, run `npm run build`, then start the server with `NODE_ENV=production npm run start -w @astronote/server`. The server serves the built frontend at `/` and all REST endpoints at `/api/...` on the same port. Run database migrations first with `npm run migrate -w @astronote/db`.
 
 ## Docker production image
@@ -21,7 +23,7 @@ For a single-host deployment, `docker-compose.yml` includes PostgreSQL, the app,
 
 The service worker is installed in a production build. Test offline reload from `http://localhost:3001` after loading the page once while online.
 
-Run `npm test` for package typechecks. With `DATABASE_URL` pointed at a disposable PostgreSQL database, run `npm run test:integration` to migrate it and verify account isolation, sync revisions, retries, tags, and tombstones.
+Run `npm test` for package typechecks and frontmatter parsing tests. With `DATABASE_URL` pointed at a disposable PostgreSQL database, run `npm run test:integration` to migrate it and verify account isolation, sync revisions, retries, tags, timestamps, and tombstones.
 
 ## Modules
 
@@ -33,7 +35,7 @@ Run `npm test` for package typechecks. With `DATABASE_URL` pointed at a disposab
 | `packages/domain/accounts` | Account credentials, recovery, sessions, and attempt limits | Registration, authentication, recovery code rotation, password recovery, session lookup and revocation through `domain` root | Password and code hashing, PostgreSQL counters, and session token hashes |
 | `apps/browser-client/src/notes/local` | Device note database and pending edits | `listNotes`, `saveNote`, `pendingMutations`, `receiveNote`, acknowledgements | PGlite worker, SQL, and IndexedDB naming |
 | `apps/browser-client/src/notes/sync` | Transfer of pending edits and server changes | `syncNotes()` | HTTP and cursor traversal |
-| `apps/browser-client/src/notes/transfer` | Portable note backups | `exportNotes()`, `importNotes(file)` | Backup format validation and downloads |
+| `apps/browser-client/src/notes/transfer` | Portable note transfers | `exportNotes()`, `importNotes(file)`, `importTextFiles(files)` | Backup validation, frontmatter parsing, and downloads |
 | `apps/browser-client/src/notes/storage` | Device storage retention | `deviceStorage()`, `requestPersistentStorage()` | Browser StorageManager calls |
 | `apps/browser-client/src/notes/state` | UI note state | `useNotes` | Refresh and connectivity triggers |
 | `apps/browser-client/src/preferences` | Device appearance and note list choices | `usePreferences`, `applyPreferences` | Storage key, accent palette, and defaults |

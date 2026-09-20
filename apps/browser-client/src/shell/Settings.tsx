@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { accentSwatch, usePreferences, type Accent, type Theme } from '../preferences'
-import { exportNotes, importNotes } from '../notes/transfer'
+import { exportNotes, importNotes, importTextFiles } from '../notes/transfer'
 import { deviceStorage, requestPersistentStorage, type DeviceStorage } from '../notes/storage'
 import { Button, Switch } from '../design-system'
 
@@ -11,7 +11,8 @@ export function Settings({ onClose, onNotesImported }: { onClose(): void; onNote
   const [section, setSection] = useState<Section>('Appearance')
   const [message, setMessage] = useState('')
   const [storage, setStorage] = useState<DeviceStorage | null>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
+  const backupInput = useRef<HTMLInputElement>(null)
+  const textInput = useRef<HTMLInputElement>(null)
   const preferences = usePreferences()
   const { update } = preferences
   useEffect(() => { void deviceStorage().then(setStorage) }, [])
@@ -22,7 +23,16 @@ export function Settings({ onClose, onNotesImported }: { onClose(): void; onNote
       await onNotesImported()
       setMessage(`Imported ${count} ${count === 1 ? 'note' : 'notes'} on this device.`)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed') }
-    if (fileInput.current) fileInput.current.value = ''
+    if (backupInput.current) backupInput.current.value = ''
+  }
+  const handleTextImport = async (files: FileList | null) => {
+    if (!files?.length) return
+    try {
+      const count = await importTextFiles(files)
+      await onNotesImported()
+      setMessage(`Imported ${count} ${count === 1 ? 'note' : 'notes'} on this device.`)
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed') }
+    if (textInput.current) textInput.current.value = ''
   }
   return <div className="settings-view">
     <div className="settings-top"><button className="mobile-settings-back" onClick={onClose}>‹ notes</button><span>SETTINGS</span><span>changes save as you make them</span><button onClick={onClose}>ESC to close</button></div>
@@ -64,7 +74,8 @@ export function Settings({ onClose, onNotesImported }: { onClose(): void; onNote
               setMessage(granted ? 'Device storage protection enabled.' : 'Browser did not grant persistent storage. Keep a backup of important notes.')
             }).catch(error => setMessage(String(error))) }}>Protect device storage</button>}</div>
           <div className="backup-actions"><Button onClick={() => { void exportNotes().then(count => setMessage(`Exported ${count} notes.`)).catch(error => setMessage(String(error))) }}>Export backup</Button>
-          <Button onClick={() => fileInput.current?.click()}>Import backup</Button><input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={event => { void handleImport(event.target.files?.[0]) }} /></div>
+          <Button onClick={() => backupInput.current?.click()}>Import backup</Button><input ref={backupInput} type="file" accept="application/json,.json" hidden onChange={event => { void handleImport(event.target.files?.[0]) }} />
+          <Button onClick={() => textInput.current?.click()}>Import Markdown/text files</Button><input ref={textInput} type="file" accept=".md,.MD,.txt,.TXT" multiple hidden onChange={event => { void handleTextImport(event.target.files) }} /></div>
           {message && <p role="status">{message}</p>}
         </section>
         <section className={`settings-section ${section === 'Shortcuts' ? 'active' : ''}`}><h2>SHORTCUTS</h2><dl className="shortcuts"><dt>Search or create</dt><dd>⌘K / Ctrl K</dd><dt>New note</dt><dd>⌘N / Ctrl N</dd><dt>Move through results</dt><dd>↑ / ↓</dd><dt>Open result</dt><dd>Enter</dd><dt>Close settings or clear search</dt><dd>Escape</dd></dl></section>

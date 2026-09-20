@@ -24,22 +24,25 @@ export async function listTags(): Promise<string[]> {
 export async function saveNote(id: string, title: string, body: string, deleted = false, ownerId = owner(), tags: string[] = []) {
   await ready()
   const now = new Date().toISOString()
-  await db.query(`INSERT INTO notes (id,title,body,revision,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags)
-    VALUES ($1,$2,$3,0,$4,$5,true,$6,0,$7,$8::text[])
+  await db.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags)
+    VALUES ($1,$2,$3,0,$4,$4,$5,true,$6,0,$7,$8::text[])
     ON CONFLICT (id) DO UPDATE SET title=$2,body=$3,updated_at=$4,deleted_at=$5,
       dirty=true,mutation_id=$6,tags=$8::text[] WHERE notes.owner_id=$7`,
     [id, title, body, now, deleted ? now : null, crypto.randomUUID(), ownerId, tags])
   announceChange()
 }
 /** Adds a validated backup in one local transaction, bound to the active workspace. */
-export async function importLocalNotes(notes: { title: string; body: string; tags?: string[] }[]) {
+export async function importLocalNotes(notes: { title: string; body: string; tags?: string[];
+  createdAt?: string; updatedAt?: string }[]) {
   const ownerId = owner()
   await ready()
   await db.transaction(async tx => {
     for (const note of notes) {
-      await tx.query(`INSERT INTO notes (id,title,body,revision,updated_at,dirty,mutation_id,base_revision,owner_id,tags)
-        VALUES ($1,$2,$3,0,$4,true,$5,0,$6,$7::text[])`,
-      [crypto.randomUUID(), note.title, note.body, new Date().toISOString(), crypto.randomUUID(), ownerId, note.tags ?? []])
+      const now = new Date().toISOString()
+      await tx.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,dirty,mutation_id,base_revision,owner_id,tags)
+        VALUES ($1,$2,$3,0,$4,$5,true,$6,0,$7,$8::text[])`,
+      [crypto.randomUUID(), note.title, note.body, note.createdAt ?? note.updatedAt ?? now,
+        note.updatedAt ?? note.createdAt ?? now, crypto.randomUUID(), ownerId, note.tags ?? []])
     }
   })
   announceChange()

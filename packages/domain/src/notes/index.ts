@@ -1,10 +1,12 @@
 import { database } from '@astronote/db'
 import type { Note, NoteMutation, PushResult, PullResult } from '@astronote/schemas'
 
-type Row = { id: string; title: string; body: string; tags: string[]; revision: number; updated_at: Date; deleted_at: Date | null }
+type Row = { id: string; title: string; body: string; tags: string[]; revision: number;
+  created_at: Date; updated_at: Date; deleted_at: Date | null }
 function toNote(row: Row): Note {
   return { id: row.id, title: row.title, body: row.body, tags: row.tags, revision: row.revision,
-    updatedAt: row.updated_at.toISOString(), deletedAt: row.deleted_at?.toISOString() ?? null }
+    createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
+    deletedAt: row.deleted_at?.toISOString() ?? null }
 }
 
 /** Applies each mutation once, using a server revision as the conflict boundary. */
@@ -30,7 +32,9 @@ export async function pushNotes(userId: string, mutations: NoteMutation[]): Prom
       const now = new Date()
       const revision = mutation.baseRevision + 1
       const data = { id: mutation.id, title: mutation.title, body: mutation.body, tags: mutation.tags,
-        revision, updated_at: now, deleted_at: mutation.deleted ? now : null }
+        revision, created_at: current?.created_at ?? (mutation.createdAt ? new Date(mutation.createdAt) : now),
+        updated_at: current ? now : (mutation.updatedAt ? new Date(mutation.updatedAt) : now),
+        deleted_at: mutation.deleted ? now : null }
       if (current) await tx('notes').where({ id: mutation.id, user_id: userId }).update(data)
       else await tx('notes').insert({ ...data, user_id: userId })
       await tx('note_changes').insert({ note_id: mutation.id, user_id: userId, revision })
@@ -52,7 +56,7 @@ export async function pullNotes(userId: string, cursor: number, limit = 100): Pr
     .orderBy('changes.sequence', 'asc')
     .limit(limit + 1)
     .select('changes.sequence', 'notes.id', 'notes.title', 'notes.body', 'notes.tags',
-      'notes.revision', 'notes.updated_at', 'notes.deleted_at') as (Row & { sequence: string })[]
+      'notes.revision', 'notes.created_at', 'notes.updated_at', 'notes.deleted_at') as (Row & { sequence: string })[]
   const page = rows.slice(0, limit)
   return { changes: page.map(toNote), cursor: page.length ? Number(page[page.length - 1]!.sequence) : cursor,
     hasMore: rows.length > limit }

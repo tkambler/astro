@@ -20,12 +20,15 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
 
   const noteId = crypto.randomUUID()
   const initial = { mutationId: crypto.randomUUID(), id: noteId, baseRevision: 0,
-    title: 'Example', body: 'First body', tags: ['work'], deleted: false }
+    title: 'Example', body: 'First body', tags: ['work'],
+    createdAt: '2021-02-03T00:00:00.000Z', updatedAt: '2022-05-06T15:30:00.000Z', deleted: false }
   const created = (await pushNotes(first.id, [initial])).results[0]
   assert.equal(created?.status, 'applied')
   if (created?.status !== 'applied') return
   assert.equal(created.note.revision, 1)
   assert.deepEqual(created.note.tags, ['work'])
+  assert.equal(created.note.createdAt, initial.createdAt)
+  assert.equal(created.note.updatedAt, initial.updatedAt)
 
   const retried = (await pushNotes(first.id, [initial])).results[0]
   assert.equal(retried?.status, 'applied')
@@ -36,6 +39,7 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
   const updated = (await pushNotes(first.id, [{ ...initial, mutationId: crypto.randomUUID(),
     baseRevision: 1, body: 'Second body', tags: ['work', 'ideas'] }])).results[0]
   assert.equal(updated?.status, 'applied')
+  if (updated?.status === 'applied') assert.equal(updated.note.createdAt, initial.createdAt)
   const lateRetry = (await pushNotes(first.id, [initial])).results[0]
   assert.equal(lateRetry?.status, 'conflict')
   const page = await pullNotes(first.id, 0)
