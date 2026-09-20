@@ -19,7 +19,6 @@ button { cursor: pointer; }
 .sidebar-heading, .statusbar { color: var(--text-muted); font-size: 11px; letter-spacing: .08em; }
 .chip, .icon-button { border: 1px solid var(--line); border-radius: 5px; background: var(--bg-raised); color: var(--text-secondary); padding: 6px 9px; }
 .icon-button { font-size: 20px; line-height: 20px; width: 34px; height: 34px; padding: 0; }
-.account-button { height: 34px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg-raised); color: var(--text-secondary); padding: 0 10px; font-size: 11px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace { display: flex; flex: 1; min-height: 0; }
 .sidebar { width: 495px; max-width: 45vw; flex: none; display: flex; flex-direction: column; background: var(--bg-chrome); border-right: 1px solid var(--line); min-height: 0; }
 .sidebar-heading { position: relative; padding: 14px 22px 10px; white-space: nowrap; }
@@ -88,7 +87,11 @@ button { cursor: pointer; }
 .editor-body [class*='contentEditable'] > * { max-width: var(--editor-length, 720px); }
 .editor-body [class*='contentEditable'] > :has([class*='codeMirrorWrapper']) { max-width: none; }
 .statusbar { height: 32px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; border-top: 1px solid var(--line); background: var(--bg-chrome); letter-spacing: 0; }
-.statusbar-right { display: flex; align-items: center; gap: 18px; white-space: nowrap; }
+.statusbar-account { flex: none; max-width: 35%; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar-account.signed-in { color: var(--text-secondary); }
+.statusbar-account:hover, .statusbar-account:focus-visible { text-decoration: underline; }
+.statusbar-right { display: flex; min-width: 0; align-items: center; justify-content: flex-end; gap: 18px; white-space: nowrap; }
+.statusbar-state { overflow: hidden; text-overflow: ellipsis; }
 .statusbar button { border: 0; background: transparent; color: var(--accent); font-size: 11px; }
 .settings-view { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .settings-top { height: 50px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 32px; border-bottom: 1px solid var(--line); color: var(--text-muted); font-size: 11px; letter-spacing: .1em; }
@@ -145,7 +148,7 @@ button { cursor: pointer; }
   .mobile-list-heading { display: flex; width: 100%; height: 58px; flex: none; align-items: center; justify-content: space-between; padding: 0 18px; border: 0; background: var(--bg); color: var(--text-muted); font-size: 12px; letter-spacing: .24em; text-align: left; }
   .omnibar { height: 64px; margin: 0; padding: 0 18px; gap: 10px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }.omnibar input { font-size: 17px; }.chip { display: none; }
   .mobile-clear { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 20px; }
-  .account-button, .omnibar .icon-button, .omnibar-shortcut { display: none; }
+  .omnibar .icon-button, .omnibar-shortcut { display: none; }
   .mobile-detail > .omnibar, .mobile-detail > .mobile-list-heading { display: none; }
   .sidebar { max-width: none; width: 100%; }.mobile-hidden { display: none; }
   .sidebar-heading { padding: 14px 18px 10px; border-bottom: 1px solid var(--line); letter-spacing: .16em; }.result { padding: 18px; border-left-width: 3px; border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, var(--text-muted)); }.sidebar-footer { display: none; }

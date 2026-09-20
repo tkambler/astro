@@ -157,6 +157,7 @@ export function App() {
     else if (search.trim()) void createAndOpen(search)
   }
   const mobileDetail = mobileEditor || settings || accountPanel
+  const signedIn = !!account && status !== 'auth-required'
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
     <button className="mobile-list-heading" aria-label="Scroll notes to top" onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
     <header className="omnibar">
@@ -172,7 +173,6 @@ export function App() {
       {search && <button className="chip" onClick={() => void setSearch('')}>ESC to clear</button>}
       {tagFilter && <button className="chip" onClick={() => void setTagFilter(null)}>#{tagFilter} ×</button>}
       {search && <button className="mobile-clear" aria-label="Clear search" onClick={() => void setSearch('')}>×</button>}
-      <button className="account-button" onClick={() => { setAccountPanel(value => !value); setSettings(false) }}>{account ? account.email : 'Account'}</button>
       <button className="icon-button" aria-label="Settings" aria-pressed={settings} onClick={() => { setSettings(value => !value); setAccountPanel(false) }}>⚙</button>
     </header>
     <div className="workspace">
@@ -216,7 +216,14 @@ export function App() {
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
-    <footer className="statusbar"><span>{status === 'storage-error' ? '⚠ device save failed' : status === 'sync-error' ? '⚠ sync needs attention' : status === 'auth-required' ? '● sign in to sync' : status === 'local' ? '● local notes · connect an account to sync' : status === 'synced' ? '✓ synced' : status === 'syncing' ? `↻ syncing${progress ? ` ${progress.completed}/${progress.total}` : ''}` : status === 'loading' ? 'loading…' : '● offline · saved on this device'}{error && ` · ${error}`}</span><div className="statusbar-right">{selected && !settings && !accountPanel && <span>{selected.dirty ? 'saved locally' : 'saved'}</span>}<button onClick={() => { if (status === 'auth-required' || status === 'local') setAccountPanel(true); else void sync() }}>{status === 'auth-required' || status === 'local' ? 'Connect Account' : 'Sync Now'}</button></div></footer>
+    <footer className="statusbar">
+      <button className={`statusbar-account ${signedIn ? 'signed-in' : ''}`} title={signedIn ? account.email : 'Sign In'} onClick={() => { setAccountPanel(true); setSettings(false) }}>{signedIn ? account.email : 'Sign In'}</button>
+      <div className="statusbar-right">
+        {selected && !settings && !accountPanel && <span>{selected.dirty ? 'saved locally' : 'saved'}</span>}
+        <span className="statusbar-state">{status === 'storage-error' ? '⚠ device save failed' : status === 'sync-error' ? '⚠ sync needs attention' : status === 'auth-required' ? '● sign in to sync' : status === 'local' ? '● local notes · connect an account to sync' : status === 'synced' ? '✓ synced' : status === 'syncing' ? `↻ syncing${progress ? ` ${progress.completed}/${progress.total}` : ''}` : status === 'loading' ? 'loading…' : '● offline · saved on this device'}{error && ` · ${error}`}</span>
+        {signedIn && <button onClick={() => void sync()}>Sync Now</button>}
+      </div>
+    </footer>
     {(status === 'sync-error' || status === 'storage-error') && error && <div className="mobile-sync-error" role="alert">{error}</div>}
     {!mobileDetail && <div className="mobile-list-actions">
       {tagMenu && <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
