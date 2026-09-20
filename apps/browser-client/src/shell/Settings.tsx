@@ -76,7 +76,7 @@ export function Settings({ onClose, onNotesImported }: { onClose(): void; onNote
           <div className="backup-actions"><Button onClick={() => { void exportNotes().then(count => setMessage(`Exported ${count} notes.`)).catch(error => setMessage(String(error))) }}>Export backup</Button>
           <Button onClick={() => backupInput.current?.click()}>Import backup</Button><input ref={backupInput} type="file" accept="application/json,.json" hidden onChange={event => { void handleImport(event.target.files?.[0]) }} />
           <Button onClick={() => textInput.current?.click()}>Import Markdown/text files</Button><input ref={textInput} type="file" accept=".md,.MD,.txt,.TXT" multiple hidden onChange={event => { void handleTextImport(event.target.files) }} /></div>
-          {message && <p role="status">{message}</p>}
+          {message && <p className="settings-feedback" role="status">{message}</p>}
         </section>
         <section className={`settings-section ${section === 'Shortcuts' ? 'active' : ''}`}><h2>SHORTCUTS</h2><dl className="shortcuts"><dt>Search or create</dt><dd>⌘K / Ctrl K</dd><dt>New note</dt><dd>⌘N / Ctrl N</dd><dt>Move through results</dt><dd>↑ / ↓</dd><dt>Open result</dt><dd>Enter</dd><dt>Close settings or clear search</dt><dd>Escape</dd></dl></section>
         <section className={`settings-section ${section === 'About' ? 'active' : ''}`}><h2>ABOUT ASTRONOTE</h2><p>An offline-first place for quickly creating, finding, and editing notes.</p></section>
