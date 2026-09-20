@@ -1,6 +1,8 @@
+.DS_Store
 node_modules/
 dist/
 .turbo/
 logs/
 .env
 .env.local
+/tmp
