@@ -1,6 +1,6 @@
 # Astronote
 
-An offline-first note app. The browser stores notes and pending edits in PGlite's IndexedDB-backed PostgreSQL database. The service worker precaches the app shell, bundled database assets, and local font files, so the app can reopen offline after its first successful load. The open app retries sync on reconnect, on a 30-second interval, and after edits.
+An offline-first note app. The browser stores notes and pending edits in PGlite's IndexedDB-backed PostgreSQL database. The service worker precaches the app shell, bundled database assets, and local font files, so the app can reopen offline after its first successful load. The open app retries sync on reconnect, after edits, and when the server signals a change. A 30-second interval catches missed signals.
 
 ## Run locally
 
@@ -23,7 +23,7 @@ For a single-host deployment, `docker-compose.yml` includes PostgreSQL, the app,
 
 The service worker is installed in a production build. Test offline reload from `http://localhost:3001` after loading the page once while online.
 
-Run `npm test` for package typechecks and frontmatter parsing tests. With `DATABASE_URL` pointed at a disposable PostgreSQL database, run `npm run test:integration` to migrate it and verify account isolation, sync revisions, retries, tags, timestamps, and tombstones.
+Run `npm test` for package typechecks, frontmatter parsing, and sync batch selection tests. With `DATABASE_URL` pointed at a disposable PostgreSQL database, run `npm run test:integration` to migrate it and verify account isolation, sync revisions, batches, retries, tags, timestamps, and tombstones.
 
 ## Modules
 
@@ -34,7 +34,9 @@ Run `npm test` for package typechecks and frontmatter parsing tests. With `DATAB
 | `packages/domain/notes` | Server note revisions and change feed | `pushNotes`, `pullNotes` through `domain` root | Transaction locking, idempotency, and row mapping |
 | `packages/domain/accounts` | Account credentials, recovery, sessions, and attempt limits | Registration, authentication, recovery code rotation, password recovery, session lookup and revocation through `domain` root | Password and code hashing, PostgreSQL counters, and session token hashes |
 | `apps/browser-client/src/notes/local` | Device note database and pending edits | `listNotes`, `saveNote`, `pendingMutations`, `receiveNote`, acknowledgements | PGlite worker, SQL, and IndexedDB naming |
-| `apps/browser-client/src/notes/sync` | Transfer of pending edits and server changes | `syncNotes()` | HTTP and cursor traversal |
+| `apps/browser-client/src/notes/content` | Structure and sidebar text for note bodies | `splitFrontmatter(body)`, `notePreview(body)` | Frontmatter delimiters and preview cleanup |
+| `apps/browser-client/src/notes/sync` | Transfer of pending edits and server changes | `syncNotes()`, `watchRemoteChanges()` | Batch sizing, HTTP, event stream, and cursor traversal |
+| `apps/server/src/notes` | Authenticated note API and change notification | `mountNoteRoutes()` | Routes, request limits, and account-scoped stream |
 | `apps/browser-client/src/notes/transfer` | Portable note transfers | `exportNotes()`, `importNotes(file)`, `importTextFiles(files)` | Backup validation, frontmatter parsing, and downloads |
 | `apps/browser-client/src/notes/storage` | Device storage retention | `deviceStorage()`, `requestPersistentStorage()` | Browser StorageManager calls |
 | `apps/browser-client/src/notes/state` | UI note state | `useNotes` | Refresh and connectivity triggers |
@@ -47,11 +49,13 @@ Run `npm test` for package typechecks and frontmatter parsing tests. With `DATAB
 
 Consumers should use each module's public entry point and avoid descending into its implementation. Within `notes/local`, `index.ts` is the public API; `documents.ts` owns local note reads and writes, `sync-state.ts` owns pending mutations and acknowledgements, `workspace.ts` owns account selection, and `database.ts` and `worker.ts` keep the PGlite setup private. The design-system module owns the source-controlled shadcn-style controls so screens share interaction and focus behavior without duplicating it. The service worker owns static application assets; the PGlite worker owns note data. This keeps note writes available without a network request.
 
-Sync applies mutations in order with a client mutation ID and expected server revision. The server records applied IDs for safe retries and keeps tombstones in its change feed. On revision conflict, the browser creates a local ` (conflict copy)` note containing the latest local text, then adopts the server version in one device transaction. The conflict copy syncs as a new note.
+Sync sends independent pending notes in batches of up to 25, within the request size limit, and shows batch progress in the status bar. Each mutation still carries its client mutation ID and expected server revision. The server applies a batch in one transaction, records applied IDs for safe retries, and keeps tombstones in its change feed. On revision conflict, the browser creates a local ` (conflict copy)` note containing the latest local text, then adopts the server version in one device transaction. The conflict copy syncs as a new note. An authenticated event stream tells connected browsers to pull the change feed; note contents continue to travel over REST. The stream is scoped to one server process, so the 30-second pull also covers missed signals or deployments with multiple API instances.
 
 Search and tag filtering run in the local database. Search covers titles, bodies, and tags, with title matches ranked first; the list can be sorted by modification time or title. Appearance, list, and editor preferences are stored on the device. Files & sync settings can export and import a portable JSON backup, including tags, without contacting the server. An import creates new note IDs in one local transaction; those notes sync after a connection returns.
 
-The editor offers rich text, Markdown source, and a read-only diff against the last server-acknowledged title and body. The diff baseline stays on the device, so it also works for unsynced offline edits. Each note syncs in its own request with a 52 MB JSON body limit. A note above that limit remains on the device, stays pending, and displays a sync error until it is shortened.
+Sidebar previews omit a leading YAML frontmatter block while note bodies and exports preserve it. The content module owns this shared frontmatter boundary so the import parser and sidebar use the same definition; callers use its public functions without depending on the delimiter expression.
+
+The editor offers rich text, Markdown source, and a read-only diff against the last server-acknowledged title and body. The diff baseline stays on the device, so it also works for unsynced offline edits. A push request has a 52 MB JSON body limit; the client keeps batches below 51 MiB. A note above that limit remains on the device, stays pending, and displays a sync error until it is shortened.
 
 Guest notes stay on the device until an account is connected. Registering or signing in moves guest notes into that account as new pending notes with new IDs in one device transaction. The server scopes all note reads and writes by account. Sessions use an HttpOnly, SameSite=Strict cookie; production requires HTTPS and `NODE_ENV=production` for the Secure flag. The browser stores only the account ID locally, never the session token. Signing out hides that account's device notes while keeping them available after signing back in. An offline sign-out hides them immediately and queues server session revocation for the next connection; account checks wait for that revocation before resuming.
 

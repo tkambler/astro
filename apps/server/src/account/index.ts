@@ -23,8 +23,12 @@ function clearCookie(response: Response) {
   response.setHeader('Set-Cookie', `${cookieName}=; Max-Age=0; ${cookieAttributes}`)
 }
 
+export function currentAccount(request: Request) {
+  return accountForSession(token(request))
+}
+
 export async function requireAccount(request: Request, response: Response) {
-  const current = await accountForSession(token(request))
+  const current = await currentAccount(request)
   if (!current) response.status(401).json({ error: 'Sign in to sync notes.' })
   return current
 }
@@ -33,7 +37,7 @@ export function mountAccountRoutes(app: Express) {
   app.use('/api/account', (_request, response, next) => { response.set('Cache-Control', 'no-store'); next() })
   app.get('/api/account', async (request, response) => {
     try {
-      const current = await accountForSession(token(request))
+      const current = await currentAccount(request)
       return response.json({ account: current })
     } catch { return response.status(500).json({ error: 'Could not check account' }) }
   })

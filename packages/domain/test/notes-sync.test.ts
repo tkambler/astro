@@ -57,6 +57,21 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
   assert.equal(await accountForSession(token), null)
 })
 
+test('a batch applies independent notes atomically and preserves mutation order', async () => {
+  const registered = await registerAccount({ email: `batch-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const mutations = Array.from({ length: 25 }, (_, index) => ({ mutationId: crypto.randomUUID(),
+    id: crypto.randomUUID(), baseRevision: 0, title: `Batch ${index}`, body: '', tags: [], deleted: false }))
+  const result = await pushNotes(registered.id, mutations)
+  assert.deepEqual(result.results.map(item => item.mutationId), mutations.map(item => item.mutationId))
+  assert.ok(result.results.every(item => item.status === 'applied'))
+  const page = await pullNotes(registered.id, 0)
+  assert.equal(page.changes.length, mutations.length)
+  assert.deepEqual(page.changes.map(note => note.id), mutations.map(item => item.id))
+  assert.ok((await pushNotes(registered.id, mutations)).results.every(item => item.status === 'applied'))
+  assert.equal((await pullNotes(registered.id, 0)).changes.length, mutations.length)
+})
+
 test('authentication limit is atomic across concurrent attempts and resets after its window', async () => {
   const source = `integration:${crypto.randomUUID()}`
   const decisions = await Promise.all(Array.from({ length: 25 }, () => authenticationAttemptAllowed(source)))

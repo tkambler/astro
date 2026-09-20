@@ -11,23 +11,26 @@ function toNote(row: Row): Note {
 
 /** Applies each mutation once, using a server revision as the conflict boundary. */
 export async function pushNotes(userId: string, mutations: NoteMutation[]): Promise<PushResult> {
-  const results: PushResult['results'] = []
-  for (const mutation of mutations) {
-    const result = await database().transaction(async tx => {
-      // Serialize change sequence allocation so pull cursors cannot skip late commits.
-      await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
+  return database().transaction(async tx => {
+    // Serialize change sequence allocation so pull cursors cannot skip late commits.
+    await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
+    const results: PushResult['results'] = []
+    for (const mutation of mutations) {
       const previous = await tx('note_mutations').where({ id: mutation.mutationId, user_id: userId }).first()
       const current = await tx('notes').where({ id: mutation.id, user_id: userId }).first<Row>()
       if (previous) {
         if (!current) throw new Error('Applied mutation has no note')
         if (current.revision > mutation.baseRevision + 1) {
-          return { status: 'conflict' as const, mutationId: mutation.mutationId, serverNote: toNote(current) }
+          results.push({ status: 'conflict', mutationId: mutation.mutationId, serverNote: toNote(current) })
+        } else {
+          results.push({ status: 'applied', mutationId: mutation.mutationId, note: toNote(current) })
         }
-        return { status: 'applied' as const, mutationId: mutation.mutationId, note: toNote(current) }
+        continue
       }
       if ((current?.revision ?? 0) !== mutation.baseRevision) {
         if (!current) throw new Error('Conflict without server note')
-        return { status: 'conflict' as const, mutationId: mutation.mutationId, serverNote: toNote(current) }
+        results.push({ status: 'conflict', mutationId: mutation.mutationId, serverNote: toNote(current) })
+        continue
       }
       const now = new Date()
       const revision = mutation.baseRevision + 1
@@ -39,11 +42,10 @@ export async function pushNotes(userId: string, mutations: NoteMutation[]): Prom
       else await tx('notes').insert({ ...data, user_id: userId })
       await tx('note_changes').insert({ note_id: mutation.id, user_id: userId, revision })
       await tx('note_mutations').insert({ id: mutation.mutationId, note_id: mutation.id, user_id: userId })
-      return { status: 'applied' as const, mutationId: mutation.mutationId, note: toNote(data) }
-    })
-    results.push(result)
-  }
-  return { results }
+      results.push({ status: 'applied', mutationId: mutation.mutationId, note: toNote(data) })
+    }
+    return { results }
+  })
 }
 
 /** Returns a bounded change page, including tombstones, after the given cursor. */

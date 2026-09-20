@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MDXEditor, type MDXEditorMethods, UndoRedo, BoldItalicUnderlineToggles, BlockTypeSelect,
   ListsToggle, CreateLink, InsertCodeBlock, toolbarPlugin, headingsPlugin,
-  listsPlugin, linkPlugin, codeBlockPlugin, quotePlugin } from '@mdxeditor/editor'
+  listsPlugin, linkPlugin, codeBlockPlugin, quotePlugin, frontmatterPlugin } from '@mdxeditor/editor'
 import { useNotes } from '../notes/state'
 import { onNotesChanged, type LocalNote } from '../notes/local'
 import { applyPreferences, usePreferences } from '../preferences'
@@ -9,12 +9,14 @@ import { Settings } from './Settings'
 import { AccountPanel } from './Account'
 import { useAccount } from '../account'
 import { compareNote } from '../notes/diff'
+import { notePreview } from '../notes/content'
+import { watchRemoteChanges } from '../notes/sync'
 
-const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), quotePlugin(),
+const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), quotePlugin(), frontmatterPlugin(),
   toolbarPlugin({ toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></> })]
 
 export function App() {
-  const { notes, tags, tagFilter, search, selectedId, status, error, setSearch, setTagFilter,
+  const { notes, tags, tagFilter, search, selectedId, status, error, progress, setSearch, setTagFilter,
     refresh, select, create, save, remove, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
@@ -36,6 +38,10 @@ export function App() {
     const timer = window.setInterval(() => { if (navigator.onLine) void sync() }, 30_000)
     return () => { unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged); window.clearInterval(timer) }
   }, [])
+  useEffect(() => {
+    if (!account || status === 'auth-required') return
+    return watchRemoteChanges(() => { void useNotes.getState().sync() })
+  }, [account?.id, status === 'auth-required'])
   useEffect(() => {
     const apply = () => applyPreferences(preferences)
     apply()
@@ -94,7 +100,7 @@ export function App() {
           {notes.map(note => <button key={note.id} className={`result ${selectedId === note.id ? 'selected' : ''}`}
             onClick={() => { select(note.id); setMobileEditor(true); setSettings(false) }}>
             <span className="result-line"><strong>{note.title || 'Untitled'}</strong><small>{new Date(note.updatedAt).toLocaleDateString()}</small></span>
-            {preferences.showPreviews && <span className="preview">{note.body.replace(/[#*_`>\[\]]/g, '').slice(0, 115) || 'Empty note'}</span>}
+            {preferences.showPreviews && <span className="preview">{notePreview(note.body)}</span>}
             {preferences.showTags && !!note.tags.length && <span className="result-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}
             {note.dirty && <span className="pending">● pending sync</span>}
           </button>)}
@@ -110,7 +116,7 @@ export function App() {
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
-    <footer className="statusbar"><span>{status === 'storage-error' ? '⚠ device save failed' : status === 'sync-error' ? '⚠ sync needs attention' : status === 'auth-required' ? '● sign in to sync' : status === 'local' ? '● local notes · connect an account to sync' : status === 'synced' ? '✓ synced' : status === 'syncing' ? '↻ syncing' : status === 'loading' ? 'loading…' : '● offline · saved on this device'}{error && ` · ${error}`}</span><button onClick={() => { if (status === 'auth-required' || status === 'local') setAccountPanel(true); else void sync() }}>{status === 'auth-required' || status === 'local' ? 'Connect account' : 'Sync now'}</button></footer>
+    <footer className="statusbar"><span>{status === 'storage-error' ? '⚠ device save failed' : status === 'sync-error' ? '⚠ sync needs attention' : status === 'auth-required' ? '● sign in to sync' : status === 'local' ? '● local notes · connect an account to sync' : status === 'synced' ? '✓ synced' : status === 'syncing' ? `↻ syncing${progress ? ` ${progress.completed}/${progress.total}` : ''}` : status === 'loading' ? 'loading…' : '● offline · saved on this device'}{error && ` · ${error}`}</span><button onClick={() => { if (status === 'auth-required' || status === 'local') setAccountPanel(true); else void sync() }}>{status === 'auth-required' || status === 'local' ? 'Connect account' : 'Sync now'}</button></footer>
     {status === 'sync-error' && error && <div className="mobile-sync-error" role="alert">{error}</div>}
     {!mobileDetail && <div className="mobile-list-actions">
       {tagMenu && <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
@@ -173,7 +179,9 @@ function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
     <div className="editor-body">
       {mode === 'diff' ? <NoteDiff previousTitle={note.syncedTitle} title={title} previousBody={note.syncedBody} body={body} />
         : mode === 'source' ? <textarea aria-label="Markdown source" spellCheck={spellcheck} value={body} onChange={event => { setBody(event.target.value); save(content.current.title, event.target.value) }} />
-        : <MDXEditor ref={editor} key={`${note.id}-${mode}`} markdown={body} plugins={plugins} spellCheck={spellcheck} onChange={value => { if (value !== content.current.body) { setBody(value); save(content.current.title, value) } }} />}
+        : <MDXEditor ref={editor} key={`${note.id}-${mode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}
+            onError={() => setMode('source')}
+            onChange={(value, initialMarkdownNormalize) => { if (!initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} />}
     </div>
     <div className="mobile-editor-actions"><span>{mode === 'rich' ? 'MDXEditor · rich text' : mode === 'source' ? 'Markdown · source' : 'Changes · diff'}</span><button onClick={() => setMode(mode === 'rich' ? 'source' : 'rich')}>{mode === 'rich' ? 'SOURCE' : 'RICH'}</button><button className="done" onClick={onBack}>DONE</button></div>
   </>

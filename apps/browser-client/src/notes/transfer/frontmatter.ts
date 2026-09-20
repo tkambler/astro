@@ -1,14 +1,15 @@
 import { isMap, parseDocument } from 'yaml'
+import { splitFrontmatter } from '../content/index.ts'
 
 export type TextNote = { title: string; body: string; tags: string[]; createdAt?: string; updatedAt?: string }
 
 /** Reads metadata from frontmatter while preserving the original file body. */
 export function textNote(filename: string, body: string): TextNote {
   const titleFromFilename = filename.replace(/\.(md|txt)$/i, '').trim().slice(0, 500) || 'Untitled'
-  const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/my.exec(body)
-  if (!match) return { title: titleFromFilename, body, tags: [] }
+  const frontmatter = splitFrontmatter(body)
+  if (!frontmatter) return { title: titleFromFilename, body, tags: [] }
 
-  const source = match[1]!
+  const source = frontmatter.source
   let document = parseDocument(source, { uniqueKeys: true })
   if (document.errors.length) {
     // Some note exporters leave colons unquoted in a title. Retry that one case
