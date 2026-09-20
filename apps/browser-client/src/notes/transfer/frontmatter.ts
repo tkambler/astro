@@ -8,7 +8,18 @@ export function textNote(filename: string, body: string): TextNote {
   const match = /^(?:\uFEFF)?---[ \t]*\r?\n([\s\S]*?)^---[ \t]*(?:\r?\n|$)/my.exec(body)
   if (!match) return { title: titleFromFilename, body, tags: [] }
 
-  const document = parseDocument(match[1]!, { uniqueKeys: true })
+  const source = match[1]!
+  let document = parseDocument(source, { uniqueKeys: true })
+  if (document.errors.length) {
+    // Some note exporters leave colons unquoted in a title. Retry that one case
+    // without changing the body saved in the note.
+    const repaired = source.replace(/^title:[ \t]*([^\r\n]+)$/m, (line, raw: string) => {
+      const value = raw.trim()
+      return !/^["'\[{|>]/.test(value) && /:\s/.test(value)
+        ? `title: ${JSON.stringify(value)}` : line
+    })
+    if (repaired !== source) document = parseDocument(repaired, { uniqueKeys: true })
+  }
   if (document.errors.length) throw new Error(`${filename}: invalid YAML frontmatter: ${document.errors[0]!.message}`)
   if (document.contents !== null && !isMap(document.contents))
     throw new Error(`${filename}: YAML frontmatter must be a mapping`)

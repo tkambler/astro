@@ -32,6 +32,14 @@ test('comma-separated tags are accepted and deduplicated', () => {
       createdAt: undefined, updatedAt: undefined })
 })
 
+test('unquoted colons in a frontmatter title are accepted', () => {
+  const body = '---\ntitle: Claude: MCP Servers\ntags: [tools, notes]\n---\nBody'
+  assert.deepEqual(textNote('Claude_MCP Servers.md', body), {
+    title: 'Claude: MCP Servers', body, tags: ['tools', 'notes'],
+    createdAt: undefined, updatedAt: undefined,
+  })
+})
+
 test('invalid metadata rejects the file', () => {
   assert.throws(() => textNote('bad.md', '---\ntags: [valid, 4]\n---\n'), /tags must be/)
   assert.throws(() => textNote('bad.md', '---\ncreatedAt: not-a-date\n---\n'), /invalid createdAt/)
