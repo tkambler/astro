@@ -7,16 +7,22 @@ import { onNotesChanged, type LocalNote } from '../notes/local'
 import { applyPreferences, usePreferences } from '../preferences'
 import { Settings } from './Settings'
 import { AccountPanel } from './Account'
+import { SwipeableNoteRow } from './SwipeableNoteRow'
 import { useAccount } from '../account'
 import { hasInvalidFrontmatter, notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
 
 const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(),
-  toolbarPlugin({ toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /><EditorToolbarActions /></> })]
+  toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></div><EditorToolbarActions /></> })]
 
 const EditorActionsContext = createContext<{
-  mode: 'rich' | 'source'; invalidFrontmatter: boolean; showRich: () => void; showSource: () => void; deleteNote: () => void
+  mode: 'rich' | 'source'; invalidFrontmatter: boolean; heading: ReactNode;
+  showRich: () => void; showSource: () => void; deleteNote: () => void
 } | null>(null)
+
+function EditorToolbarHeading() {
+  return useContext(EditorActionsContext)?.heading ?? null
+}
 
 function EditorToolbarActions() {
   const actions = useContext(EditorActionsContext)
@@ -30,7 +36,14 @@ function EditorToolbarActions() {
   }, [])
   if (!actions) return null
   return <div className="editor-actions">
-    <div className="editor-toggle"><button type="button" className={actions.mode === 'rich' ? 'active' : ''} disabled={actions.invalidFrontmatter} onClick={actions.showRich}>RICH</button><button type="button" className={actions.mode === 'source' ? 'active' : ''} onClick={actions.showSource}>SOURCE</button></div>
+    <button type="button" className="editor-mode-button" disabled={actions.mode === 'source' && actions.invalidFrontmatter}
+      aria-label={actions.mode === 'rich' ? 'Switch to Markdown Source' : 'Switch to Rich Text'}
+      title={actions.mode === 'rich' ? 'Switch to Markdown Source' : 'Switch to Rich Text'}
+      onClick={actions.mode === 'rich' ? actions.showSource : actions.showRich}>
+      {actions.mode === 'rich'
+        ? <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m7 5-5 5 5 5m6-10 5 5-5 5M12 3 8 17" /></svg>
+        : <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h12M4 10h12M4 15h8" /></svg>}
+    </button>
     <details ref={menu} className="editor-more" onKeyDown={event => { if (event.key === 'Escape') menu.current!.open = false }}><summary aria-label="More Note Actions" title="More Note Actions">⋯</summary><div className="editor-more-menu"><button type="button" onClick={actions.deleteNote}>Delete</button></div></details>
   </div>
 }
@@ -63,8 +76,6 @@ export function App() {
   const results = useRef<HTMLDivElement>(null)
   const sortMenu = useRef<HTMLDetailsElement>(null)
   const noteMenuRef = useRef<HTMLDivElement>(null)
-  const swipeStart = useRef<{ id: string; x: number; y: number } | null>(null)
-  const suppressSwipeClick = useRef<{ id: string; until: number } | null>(null)
   const loadAttempt = useRef(0)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selected = notes.find(note => note.id === selectedId) ?? null
@@ -179,16 +190,6 @@ export function App() {
   }
   const mobileDetail = mobileEditor || settings || accountPanel
   const signedIn = !!account && status !== 'auth-required'
-  const finishSwipe = (id: string, x: number, y: number) => {
-    const start = swipeStart.current
-    swipeStart.current = null
-    if (!mobileLayout || start?.id !== id) return
-    const dx = x - start.x
-    const dy = y - start.y
-    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.25) return
-    setOpenSwipeId(dx < 0 ? id : null)
-    suppressSwipeClick.current = { id, until: Date.now() + 500 }
-  }
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
     <button className="mobile-list-heading" aria-label="Scroll notes to top" onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
     <header className="omnibar">
@@ -220,10 +221,10 @@ export function App() {
           </details>
         </div>
         <div className="results" ref={results} onScroll={() => setNoteMenu(null)}>
-          {notes.map(note => <div key={note.id} className={`result-swipe ${openSwipeId === note.id ? 'swipe-open' : ''}`}
-            onTouchStart={event => { const touch = event.touches[0]; if (touch) swipeStart.current = { id: note.id, x: touch.clientX, y: touch.clientY } }}
-            onTouchEnd={event => { const touch = event.changedTouches[0]; if (touch) finishSwipe(note.id, touch.clientX, touch.clientY) }}
-            onTouchCancel={() => { swipeStart.current = null }}>
+          {notes.map(note => <SwipeableNoteRow key={note.id} mobile={mobileLayout} open={openSwipeId === note.id}
+            onOpenChange={open => setOpenSwipeId(open ? note.id : null)}
+            deleteLabel={`Delete ${note.title || 'Untitled'}`}
+            onDelete={() => { setOpenSwipeId(null); void remove(note.id) }}>
             <button className={`result ${selectedId === note.id ? 'selected' : ''}`}
             onContextMenu={event => {
               event.preventDefault()
@@ -235,10 +236,6 @@ export function App() {
               setOpenSwipeId(null)
             }}
             onClick={event => {
-              if (suppressSwipeClick.current?.id === note.id && Date.now() < suppressSwipeClick.current.until) {
-                suppressSwipeClick.current = null
-                return
-              }
               setOpenSwipeId(null)
               if (event.metaKey && selectedId === note.id) { select(null); setMobileEditor(false) }
               else { select(note.id); setMobileEditor(true) }
@@ -248,9 +245,7 @@ export function App() {
             <span className="result-meta"><small>{new Date(note.updatedAt).toLocaleDateString()}</small>{preferences.showTags && !!note.tags.length && <span className="result-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}</span>
             {preferences.showPreviews && <span className="preview">{notePreview(note.body)}</span>}
             </button>
-            <button className="result-delete" type="button" aria-label={`Delete ${note.title || 'Untitled'}`} tabIndex={openSwipeId === note.id && mobileLayout ? 0 : -1}
-              onClick={() => { setOpenSwipeId(null); void remove(note.id) }}>Delete</button>
-          </div>)}
+          </SwipeableNoteRow>)}
           {!notes.length && (initialLoad === 'loading'
             ? <div className="empty-results loading-results" role="status"><span className="loading-spinner" aria-hidden="true" />Loading notes…</div>
             : initialLoad === 'unavailable'
@@ -258,7 +253,6 @@ export function App() {
               : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
         </div>
         <button className="create-row" onClick={() => void createAndOpen(search)}>＋ Create Note {search && `“${search}”`}</button>
-        <div className="sidebar-footer"><span>{preferences.showPreviews ? 'previews on' : 'previews off'} &nbsp; · &nbsp; ⌘K omnibar</span><span>{notes.length} notes</span></div>
       </aside>
       <main className={`main-pane ${!mobileEditor && !settings && !accountPanel ? 'mobile-hidden' : ''}`}>
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
@@ -346,26 +340,30 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
     const next = [...tags, tag]
     setTags(next); setTagInput(''); save(content.current.title, content.current.body, next)
   }
+  const noteTitle = () => <input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} />
+  const tagControls = () => <div className="note-tags">{tags.map(tag => <span key={tag}>{tag}<button aria-label={`Remove ${tag} tag`} onClick={() => { const next = tags.filter(item => item !== tag); setTags(next); save(content.current.title, content.current.body, next) }}>×</button></span>)}
+    <input aria-label="Add tag" placeholder="+ tag" value={tagInput} onChange={event => setTagInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addTag() } }} onBlur={() => { if (tagInput.trim()) addTag() }} /></div>
   const toolbarActions = {
-    mode: displayMode, invalidFrontmatter,
+    mode: displayMode, invalidFrontmatter, heading: <div className="editor-ribbon-heading">{noteTitle()}</div>,
     showRich: () => { setRichFailed(false); setMode('rich') },
     showSource: () => setMode('source'),
     deleteNote: () => { if (confirm('Delete this note?')) void onDelete(note.id) },
   }
+  const markEditorInteraction = (target: EventTarget) => {
+    if (!(target instanceof Element && target.closest('.editor-ribbon-heading'))) editorInteracted.current = true
+  }
   return <>
-    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ results</button><input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} />
-      <div className="note-tags">{tags.map(tag => <span key={tag}>{tag}<button aria-label={`Remove ${tag} tag`} onClick={() => { const next = tags.filter(item => item !== tag); setTags(next); save(content.current.title, content.current.body, next) }}>×</button></span>)}
-        <input aria-label="Add tag" placeholder="+ tag" value={tagInput} onChange={event => setTagInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addTag() } }} onBlur={() => { if (tagInput.trim()) addTag() }} /></div>
+    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ results</button>{noteTitle()}{tagControls()}
       <button ref={mobileMoreButton} className="mobile-more" onClick={() => setMoreMenu(value => !value)} aria-label="More Note Actions" aria-expanded={moreMenu}>⋯</button>
       {moreMenu && <div ref={mobileMorePopup} className="mobile-more-menu" role="menu"><button role="menuitem" className="danger" onClick={() => { setMoreMenu(false); if (confirm('Delete this note?')) void onDelete(note.id) }}>Delete</button></div>}</div>
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
     {invalidFrontmatter && <div className="editor-warning" role="status">Invalid YAML frontmatter. Edit it in source mode to restore the rich editor.</div>}
-    {displayMode === 'source' && <EditorActionsContext.Provider value={toolbarActions}><div className="editor-source-toolbar"><EditorToolbarActions /></div></EditorActionsContext.Provider>}
+    {displayMode === 'source' && <EditorActionsContext.Provider value={toolbarActions}><div className="editor-source-toolbar"><EditorToolbarHeading /><EditorToolbarActions /></div></EditorActionsContext.Provider>}
     <div className={`editor-body ${displayMode === 'source' ? 'source-editor' : ''}`}
-      onPointerDownCapture={() => { editorInteracted.current = true }}
-      onKeyDownCapture={() => { editorInteracted.current = true }}
-      onBeforeInputCapture={() => { editorInteracted.current = true }}
-      onPasteCapture={() => { editorInteracted.current = true }}
+      onPointerDownCapture={event => markEditorInteraction(event.target)}
+      onKeyDownCapture={event => markEditorInteraction(event.target)}
+      onBeforeInputCapture={event => markEditorInteraction(event.target)}
+      onPasteCapture={event => markEditorInteraction(event.target)}
       onTouchCancelCapture={() => { linkTouch.current = null }} onTouchStartCapture={event => {
       const link = event.target instanceof Element ? event.target.closest('a[href]') : null
       const touch = event.touches[0]
