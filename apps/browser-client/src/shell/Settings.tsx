@@ -6,12 +6,12 @@ import { Button, Switch } from '../design-system'
 import { useAccount } from '../account'
 import { activeAccountId } from '../notes/local'
 
-type Section = 'Appearance' | 'Editor' | 'Omnibar' | 'Files & sync' | 'Shortcuts' | 'About'
-const sections: Section[] = ['Appearance', 'Editor', 'Omnibar', 'Files & sync', 'Shortcuts', 'About']
+type Section = 'Appearance' | 'Editor' | 'Files & sync' | 'Shortcuts' | 'About'
+const sections: Section[] = ['Appearance', 'Editor', 'Files & sync', 'Shortcuts', 'About']
 
-export function Settings({ onClose, onNotesImported, onNotesReset }: {
-  onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void> }) {
-  const [section, setSection] = useState<Section>('Appearance')
+export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset }: {
+  mobileLayout: boolean; onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void> }) {
+  const [section, setSection] = useState<Section | null>(mobileLayout ? null : 'Appearance')
   const [message, setMessage] = useState('')
   const [storage, setStorage] = useState<DeviceStorage | null>(null)
   const backupInput = useRef<HTMLInputElement>(null)
@@ -24,6 +24,7 @@ export function Settings({ onClose, onNotesImported, onNotesReset }: {
   const hasAccountNotes = activeAccountId() !== null
   const preferences = usePreferences()
   const { update } = preferences
+  useEffect(() => { setSection(mobileLayout ? null : 'Appearance') }, [mobileLayout])
   useEffect(() => { void deviceStorage().then(setStorage) }, [])
   const handleImport = async (file: File | undefined) => {
     if (!file) return
@@ -54,11 +55,13 @@ export function Settings({ onClose, onNotesImported, onNotesReset }: {
     finally { setResetting(false) }
   }
   return <div className="settings-view">
-    <div className="settings-top"><button className="mobile-settings-back" onClick={onClose}>‹ notes</button><span>SETTINGS</span><span>changes save as you make them</span><button onClick={onClose}>ESC to close</button></div>
+    <div className="settings-top"><button className="mobile-settings-back" onClick={() => { if (mobileLayout && section) setSection(null); else onClose() }}>{mobileLayout && section ? '‹ Settings' : '‹ Notes'}</button><span>{mobileLayout && section ? section.toUpperCase() : 'SETTINGS'}</span><span>changes save as you make them</span><button onClick={onClose}>ESC to close</button></div>
     <div className="settings-layout">
-      <nav className="settings-nav" aria-label="Settings sections">{sections.map(item =>
-        <button key={item} className={section === item ? 'active' : ''} onClick={() => setSection(item)}>{item}</button>)}</nav>
-      <div className="settings-content">
+      <nav className={`settings-nav ${section === null ? 'mobile-section-list' : ''}`} aria-label="Settings sections">{sections.map(item =>
+        <button key={item} className={section === item ? 'active' : ''} aria-current={section === item ? 'page' : undefined}
+          onClick={event => setSection(event.metaKey && section === item ? null : item)}>{item}</button>)}</nav>
+      <div className={`settings-content ${section !== null ? 'mobile-section-active' : ''}`}>
+        {section === null && <div className="settings-unselected">Select a settings page.</div>}
         <section className={`settings-section ${section === 'Appearance' ? 'active' : ''}`}>
           <h2>THEME</h2><p>Applies to this device. System follows your operating system setting.</p>
           <div className="theme-cards">{(['light', 'dark', 'system'] as Theme[]).map(value =>
@@ -74,7 +77,7 @@ export function Settings({ onClose, onNotesImported, onNotesReset }: {
           <label className="setting-field">Preview lines <select disabled={!preferences.showPreviews} value={preferences.previewLines}
             onChange={event => update({ previewLines: Number(event.target.value) as 1 | 2 | 3 })}>{[1,2,3].map(n => <option key={n} value={n}>{n} {n === 1 ? 'line' : 'lines'}</option>)}</select></label>
           <label className="setting-field">Sort notes by <select value={preferences.sort}
-            onChange={event => update({ sort: event.target.value as 'modified' | 'title' })}><option value="modified">Date modified</option><option value="title">Title</option></select></label>
+            onChange={event => { const sort = event.target.value as 'modified' | 'title'; update({ sort, sortDirection: sort === 'title' ? 'asc' : 'desc' }) }}><option value="modified">Date modified</option><option value="title">Title</option></select></label>
           <label className="settings-check"><Switch aria-label="Show tags on each row" checked={preferences.showTags} onCheckedChange={checked => update({ showTags: checked })} /><span><strong>Show tags on each row</strong></span></label>
           <hr /><h2>TYPOGRAPHY</h2>
           <label className="setting-field">Editor text size <select value={preferences.textSize} onChange={event => update({ textSize: Number(event.target.value) as 13 | 15 | 17 | 19 })}>{[13,15,17,19].map(n => <option key={n} value={n}>{n} px</option>)}</select></label>
@@ -84,7 +87,6 @@ export function Settings({ onClose, onNotesImported, onNotesReset }: {
           <label className="setting-field">Default mode <select value={preferences.editorMode} onChange={event => update({ editorMode: event.target.value as 'rich' | 'source' })}><option value="rich">Rich text</option><option value="source">Markdown source</option></select></label>
           <label className="settings-check"><Switch aria-label="Spellcheck" checked={preferences.spellcheck} onCheckedChange={checked => update({ spellcheck: checked })} /><span><strong>Spellcheck</strong></span></label>
         </section>
-        <section className={`settings-section ${section === 'Omnibar' ? 'active' : ''}`}><h2>OMNIBAR</h2><p>Search note titles and bodies. Title matches appear first. Press Enter to open a result or create a note.</p></section>
         <section className={`settings-section ${section === 'Files & sync' ? 'active' : ''}`}><h2>FILES &amp; SYNC</h2><p>Your notes are stored on this device and synced with the server when it is reachable. Export a backup before clearing browser data.</p>
           <div className="storage-row"><span>Device storage: {storage?.persistent === true ? 'protected from automatic eviction' : storage?.persistent === false ? 'best effort' : 'unavailable'}
             {storage?.usedBytes != null && ` · about ${(storage.usedBytes / 1024 / 1024).toFixed(1)} MB used`}</span>

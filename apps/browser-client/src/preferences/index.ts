@@ -3,6 +3,7 @@ import { create } from 'zustand'
 export type Theme = 'system' | 'light' | 'dark'
 export type Accent = 'cobalt' | 'sage' | 'amber' | 'rose'
 export type NoteSort = 'modified' | 'title'
+export type SortDirection = 'asc' | 'desc'
 export type Preferences = {
   theme: Theme
   accent: Accent
@@ -10,6 +11,7 @@ export type Preferences = {
   showTags: boolean
   previewLines: 1 | 2 | 3
   sort: NoteSort
+  sortDirection: SortDirection
   textSize: 13 | 15 | 17 | 19
   lineLength: 600 | 720 | 840
   editorMode: 'rich' | 'source'
@@ -18,7 +20,7 @@ export type Preferences = {
 type Store = Preferences & { update(patch: Partial<Preferences>): void }
 const defaults: Preferences = {
   theme: 'system', accent: 'cobalt', showPreviews: true, showTags: true, previewLines: 2,
-  sort: 'modified', textSize: 15, lineLength: 720, editorMode: 'rich', spellcheck: true,
+  sort: 'modified', sortDirection: 'desc', textSize: 15, lineLength: 720, editorMode: 'rich', spellcheck: true,
 }
 const key = 'astronote-preferences-v1'
 

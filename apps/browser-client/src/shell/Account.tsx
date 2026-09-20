@@ -44,7 +44,7 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
     finally { setBusy(false) }
   }
   return <div className="account-panel">
-    <div className="settings-top"><button className="mobile-settings-back" onClick={onClose}>‹ notes</button><span>ACCOUNT</span><button onClick={onClose}>ESC to close</button></div>
+    <div className="settings-top"><button className="mobile-settings-back" onClick={onClose}>‹ Notes</button><span>ACCOUNT</span><button onClick={onClose}>ESC to close</button></div>
     <div className="account-content">
       {newRecoveryCode ? <><h1>Save your recovery code</h1><p>This code can reset your password if you lose it. Store it somewhere safe. It will only be shown now; generating another code invalidates this one.</p>
         <code className="recovery-code">{newRecoveryCode}</code>

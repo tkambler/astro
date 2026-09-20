@@ -1,40 +1,61 @@
 import { useEffect, useRef, useState } from 'react'
 import { MDXEditor, type MDXEditorMethods, UndoRedo, BoldItalicUnderlineToggles, BlockTypeSelect,
   ListsToggle, CreateLink, InsertCodeBlock, toolbarPlugin, headingsPlugin,
-  listsPlugin, linkPlugin, codeBlockPlugin, quotePlugin, frontmatterPlugin } from '@mdxeditor/editor'
+  listsPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, quotePlugin, frontmatterPlugin, tablePlugin } from '@mdxeditor/editor'
 import { useNotes } from '../notes/state'
 import { onNotesChanged, type LocalNote } from '../notes/local'
 import { applyPreferences, usePreferences } from '../preferences'
 import { Settings } from './Settings'
 import { AccountPanel } from './Account'
 import { useAccount } from '../account'
-import { compareNote } from '../notes/diff'
 import { notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
 
-const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), quotePlugin(), frontmatterPlugin(),
+const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(),
   toolbarPlugin({ toolbarContents: () => <><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></> })]
 
 export function App() {
   const { notes, tags, tagFilter, search, selectedId, status, error, progress, setSearch, setTagFilter,
-    refresh, select, create, save, remove, reset, sync } = useNotes()
+    refresh, resort, select, create, save, remove, reset, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
   const [settings, setSettings] = useState(false)
   const [accountPanel, setAccountPanel] = useState(false)
   const [mobileEditor, setMobileEditor] = useState(false)
   const [mobileLayout, setMobileLayout] = useState(() => matchMedia('(max-width: 700px)').matches)
-  const [initialLoading, setInitialLoading] = useState(true)
+  const [initialLoad, setInitialLoad] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [tagMenu, setTagMenu] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const results = useRef<HTMLDivElement>(null)
+  const loadAttempt = useRef(0)
+  const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selected = notes.find(note => note.id === selectedId) ?? null
-  useEffect(() => {
-    let mounted = true
+  const loadNotes = () => {
+    const attempt = ++loadAttempt.current
+    if (loadTimer.current) clearTimeout(loadTimer.current)
+    setInitialLoad('loading')
+    loadTimer.current = setTimeout(() => {
+      if (loadAttempt.current === attempt) setInitialLoad('unavailable')
+    }, 10_000)
     void (async () => {
-      try { await refresh(); await useAccount.getState().check(); await refresh(); await sync() }
-      finally { if (mounted) setInitialLoading(false) }
+      try {
+        await refresh()
+        await useAccount.getState().check()
+        await refresh()
+        await sync()
+        if (loadAttempt.current === attempt) setInitialLoad('ready')
+      } catch {
+        if (loadAttempt.current === attempt) setInitialLoad('unavailable')
+      } finally {
+        if (loadAttempt.current === attempt && loadTimer.current) {
+          clearTimeout(loadTimer.current)
+          loadTimer.current = null
+        }
+      }
     })()
+  }
+  useEffect(() => {
+    loadNotes()
     const online = () => { void useAccount.getState().check().then(async () => { await refresh(); await sync() }) }
     const accountChanged = (event: StorageEvent) => {
       if (event.key === 'astronote-account-id') void useAccount.getState().check().then(async () => { await refresh(); await sync() })
@@ -43,7 +64,7 @@ export function App() {
     window.addEventListener('online', online)
     window.addEventListener('storage', accountChanged)
     const timer = window.setInterval(() => { if (navigator.onLine) void sync() }, 30_000)
-    return () => { mounted = false; unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged); window.clearInterval(timer) }
+    return () => { ++loadAttempt.current; if (loadTimer.current) clearTimeout(loadTimer.current); unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged); window.clearInterval(timer) }
   }, [])
   useEffect(() => {
     if (!account || status === 'auth-required') return
@@ -62,7 +83,13 @@ export function App() {
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
-  useEffect(() => { void refresh() }, [preferences.sort])
+  useEffect(() => { resort() }, [preferences.sort, preferences.sortDirection])
+  const setSort = (sort: 'title' | 'modified') => {
+    const sortDirection = preferences.sort === sort
+      ? preferences.sortDirection === 'asc' ? 'desc' : 'asc'
+      : sort === 'title' ? 'asc' : 'desc'
+    usePreferences.getState().update({ sort, sortDirection })
+  }
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); input.current?.focus() }
@@ -108,31 +135,40 @@ export function App() {
     </header>
     <div className="workspace">
       <aside className={`sidebar ${mobileEditor || settings || accountPanel ? 'mobile-hidden' : ''}`}>
-        <div className="sidebar-heading"><span>{tagFilter ? `TAG · ${tagFilter}` : search ? 'RESULTS · RANKED' : 'ALL NOTES'}</span><span>{preferences.sort === 'modified' ? 'MODIFIED ↓' : 'TITLE ↓'}</span></div>
+        <div className="sidebar-heading">
+          <button type="button" aria-label={`Sort by title${preferences.sort === 'title' ? `, ${preferences.sortDirection === 'asc' ? 'ascending' : 'descending'}` : ''}`} aria-pressed={preferences.sort === 'title'} onClick={() => setSort('title')}>TITLE {preferences.sort === 'title' ? preferences.sortDirection === 'asc' ? '↑' : '↓' : ''}</button>
+          <button type="button" aria-label={`Sort by modified date${preferences.sort === 'modified' ? `, ${preferences.sortDirection === 'asc' ? 'ascending' : 'descending'}` : ''}`} aria-pressed={preferences.sort === 'modified'} onClick={() => setSort('modified')}>MODIFIED {preferences.sort === 'modified' ? preferences.sortDirection === 'asc' ? '↑' : '↓' : ''}</button>
+        </div>
         <div className="results" ref={results}>
           {notes.map(note => <button key={note.id} className={`result ${selectedId === note.id ? 'selected' : ''}`}
-            onClick={() => { select(note.id); setMobileEditor(true); setSettings(false) }}>
+            onClick={event => {
+              if (event.metaKey && selectedId === note.id) { select(null); setMobileEditor(false) }
+              else { select(note.id); setMobileEditor(true) }
+              setSettings(false)
+            }}>
             <span className="result-line"><strong>{note.title || 'Untitled'}</strong><small>{new Date(note.updatedAt).toLocaleDateString()}</small></span>
             {preferences.showPreviews && <span className="preview">{notePreview(note.body)}</span>}
             {preferences.showTags && !!note.tags.length && <span className="result-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}
             {note.dirty && <span className="pending">● pending sync</span>}
           </button>)}
-          {!notes.length && (initialLoading
+          {!notes.length && (initialLoad === 'loading'
             ? <div className="empty-results loading-results" role="status"><span className="loading-spinner" aria-hidden="true" />Loading notes…</div>
-            : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
+            : initialLoad === 'unavailable'
+              ? <div className="empty-results" role="alert">Could not finish loading notes. <button className="loading-retry" onClick={() => window.location.reload()}>Retry</button></div>
+              : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
         </div>
         <button className="create-row" onClick={() => void create(search)}>＋ Create note {search && `“${search}”`}</button>
         <div className="sidebar-footer"><span>{preferences.showPreviews ? 'previews on' : 'previews off'} &nbsp; · &nbsp; ⌘K omnibar</span><span>{notes.length} notes</span></div>
       </aside>
       <main className={`main-pane ${!mobileEditor && !settings && !accountPanel ? 'mobile-hidden' : ''}`}>
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
-          : settings ? <Settings onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
+          : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} />
-          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} onSave={save} onDelete={async id => { await remove(id); setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
+          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} onSave={save} onDelete={async id => { await remove(id); setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
-    <footer className="statusbar"><span>{status === 'storage-error' ? '⚠ device save failed' : status === 'sync-error' ? '⚠ sync needs attention' : status === 'auth-required' ? '● sign in to sync' : status === 'local' ? '● local notes · connect an account to sync' : status === 'synced' ? '✓ synced' : status === 'syncing' ? `↻ syncing${progress ? ` ${progress.completed}/${progress.total}` : ''}` : status === 'loading' ? 'loading…' : '● offline · saved on this device'}{error && ` · ${error}`}</span><button onClick={() => { if (status === 'auth-required' || status === 'local') setAccountPanel(true); else void sync() }}>{status === 'auth-required' || status === 'local' ? 'Connect account' : 'Sync now'}</button></footer>
+    <footer className="statusbar"><span>{status === 'storage-error' ? '⚠ device save failed' : status === 'sync-error' ? '⚠ sync needs attention' : status === 'auth-required' ? '● sign in to sync' : status === 'local' ? '● local notes · connect an account to sync' : status === 'synced' ? '✓ synced' : status === 'syncing' ? `↻ syncing${progress ? ` ${progress.completed}/${progress.total}` : ''}` : status === 'loading' ? 'loading…' : '● offline · saved on this device'}{error && ` · ${error}`}</span><div className="statusbar-right">{selected && !settings && !accountPanel && <span>{selected.dirty ? 'saved locally' : 'saved'}</span>}<button onClick={() => { if (status === 'auth-required' || status === 'local') setAccountPanel(true); else void sync() }}>{status === 'auth-required' || status === 'local' ? 'Connect account' : 'Sync now'}</button></div></footer>
     {status === 'sync-error' && error && <div className="mobile-sync-error" role="alert">{error}</div>}
     {!mobileDetail && <div className="mobile-list-actions">
       {tagMenu && <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
@@ -148,7 +184,7 @@ export function App() {
   </div>
 }
 
-function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
+function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: LocalNote; mobileLayout: boolean;
   onSave: (id: string, title: string, body: string, tags: string[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>; onBack: () => void }) {
   const [title, setTitle] = useState(note.title)
@@ -157,7 +193,9 @@ function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
   const [tagInput, setTagInput] = useState('')
   const editorMode = usePreferences(state => state.editorMode)
   const spellcheck = usePreferences(state => state.spellcheck)
-  const [mode, setMode] = useState<'rich' | 'source' | 'diff'>(editorMode)
+  const [mode, setMode] = useState<'rich' | 'source'>(editorMode)
+  const [richFailed, setRichFailed] = useState(false)
+  const displayMode = mobileLayout && !richFailed ? 'rich' : mode
   const [moreMenu, setMoreMenu] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const editor = useRef<MDXEditorMethods>(null)
@@ -185,13 +223,12 @@ function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
     setTags(next); setTagInput(''); save(content.current.title, content.current.body, next)
   }
   return <>
-    <div className="note-meta"><button className="mobile-back" onClick={onBack}>‹ results</button><span>~/notes/{note.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.md</span><span className="meta-right">{note.dirty ? 'saved locally' : 'saved'}</span><button className="mobile-more" onClick={() => setMoreMenu(value => !value)} aria-label="More note actions" aria-expanded={moreMenu}>⋯</button>
-      {moreMenu && <div className="mobile-more-menu" role="menu"><button role="menuitem" onClick={() => { setMode('diff'); setMoreMenu(false) }}>View changes</button><button role="menuitem" className="danger" onClick={() => { setMoreMenu(false); if (confirm('Delete this note?')) void onDelete(note.id) }}>Delete note</button></div>}</div>
-    <div className="editor-heading"><input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} /><button onClick={() => { if (confirm('Delete this note?')) void onDelete(note.id) }}>Delete</button></div>
+    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ results</button><input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} /><button onClick={() => { if (confirm('Delete this note?')) void onDelete(note.id) }}>Delete</button><button className="mobile-more" onClick={() => setMoreMenu(value => !value)} aria-label="More note actions" aria-expanded={moreMenu}>⋯</button>
+      {moreMenu && <div className="mobile-more-menu" role="menu"><button role="menuitem" className="danger" onClick={() => { setMoreMenu(false); if (confirm('Delete this note?')) void onDelete(note.id) }}>Delete note</button></div>}</div>
     <div className="note-tags">{tags.map(tag => <span key={tag}>{tag}<button aria-label={`Remove ${tag} tag`} onClick={() => { const next = tags.filter(item => item !== tag); setTags(next); save(content.current.title, content.current.body, next) }}>×</button></span>)}
       <input aria-label="Add tag" placeholder="+ tag" value={tagInput} onChange={event => setTagInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addTag() } }} onBlur={() => { if (tagInput.trim()) addTag() }} /></div>
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
-    <div className="editor-toggle"><button className={mode === 'rich' ? 'active' : ''} onClick={() => setMode('rich')}>RICH</button><button className={mode === 'source' ? 'active' : ''} onClick={() => setMode('source')}>SOURCE</button><button className={mode === 'diff' ? 'active' : ''} onClick={() => setMode('diff')}>DIFF</button></div>
+    <div className="editor-toggle"><button className={displayMode === 'rich' ? 'active' : ''} onClick={() => { setRichFailed(false); setMode('rich') }}>RICH</button><button className={displayMode === 'source' ? 'active' : ''} onClick={() => setMode('source')}>SOURCE</button></div>
     <div className="editor-body" onTouchCancelCapture={() => { linkTouch.current = null }} onTouchStartCapture={event => {
       const link = event.target instanceof Element ? event.target.closest('a[href]') : null
       const touch = event.touches[0]
@@ -211,24 +248,11 @@ function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
       event.stopPropagation()
       window.open(href.href, '_blank', 'noopener,noreferrer')
     }}>
-      {mode === 'diff' ? <NoteDiff previousTitle={note.syncedTitle} title={title} previousBody={note.syncedBody} body={body} />
-        : mode === 'source' ? <textarea aria-label="Markdown source" spellCheck={spellcheck} value={body} onChange={event => { setBody(event.target.value); save(content.current.title, event.target.value) }} />
-        : <MDXEditor ref={editor} key={`${note.id}-${mode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}
-            onError={() => setMode('source')}
+      {displayMode === 'source' ? <textarea aria-label="Markdown source" spellCheck={spellcheck} value={body} onChange={event => { setBody(event.target.value); save(content.current.title, event.target.value) }} />
+        : <MDXEditor ref={editor} key={`${note.id}-${displayMode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}
+            onError={() => { setRichFailed(true); setMode('source') }}
             onChange={(value, initialMarkdownNormalize) => { if (!initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} />}
     </div>
-    <div className="mobile-editor-actions"><span>{mode === 'rich' ? 'MDXEditor · rich text' : mode === 'source' ? 'Markdown · source' : 'Changes · diff'}</span><button onClick={() => setMode(mode === 'rich' ? 'source' : 'rich')}>{mode === 'rich' ? 'SOURCE' : 'RICH'}</button><button className="done" onClick={onBack}>DONE</button></div>
+    <div className="mobile-editor-actions"><span>{note.dirty ? 'saved locally' : 'saved'}{richFailed ? ' · source fallback' : ''}</span><button className="done" onClick={onBack}>DONE</button></div>
   </>
-}
-
-function NoteDiff({ previousTitle, title, previousBody, body }: { previousTitle: string; title: string; previousBody: string; body: string }) {
-  const changes = compareNote(previousBody, body)
-  const changed = previousTitle !== title || previousBody !== body
-  return <section className="note-diff" aria-label="Changes since last sync">
-    <h2>CHANGES SINCE LAST SYNC</h2>
-    {!changed && <p>No text changes to show.</p>}
-    {previousTitle !== title && <div className="diff-title"><div className="removed">− {previousTitle || '(new note)'}</div><div className="added">+ {title}</div></div>}
-    {changed && changes.map((change, index) => <pre key={index} className={change.kind}>{change.text.split('\n').map((line, lineIndex, lines) =>
-      lineIndex === lines.length - 1 && !line ? null : <div key={lineIndex}>{change.kind === 'added' ? '+ ' : change.kind === 'removed' ? '− ' : '  '}{line}</div>)}</pre>)}
-  </section>
 }

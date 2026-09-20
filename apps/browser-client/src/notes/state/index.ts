@@ -2,45 +2,57 @@ import { create } from 'zustand'
 import type { LocalNote } from '../local'
 import { activeAccountId, listNotes, saveNote } from '../local'
 import { resetAllNotes, syncNotes, type SyncProgress } from '../sync'
-import { usePreferences } from '../../preferences'
+import { usePreferences, type NoteSort, type SortDirection } from '../../preferences'
 import { useAccount } from '../../account'
 
 let editSyncTimer: ReturnType<typeof setTimeout> | undefined
 
-function visibleNotes(notes: LocalNote[], search: string, tagFilter: string | null) {
+function visibleNotes(notes: LocalNote[], search: string, tagFilter: string | null,
+  sort: NoteSort = usePreferences.getState().sort,
+  direction: SortDirection = usePreferences.getState().sortDirection) {
   const term = search.toLocaleLowerCase()
   const filtered = notes.filter(note => (!tagFilter || note.tags.includes(tagFilter)) &&
     (!term || note.title.toLocaleLowerCase().includes(term) || note.body.toLocaleLowerCase().includes(term) ||
       note.tags.join(' ').toLocaleLowerCase().includes(term)))
-  if (!term) return filtered
-  return filtered.sort((a, b) => Number(!a.title.toLocaleLowerCase().includes(term)) -
-    Number(!b.title.toLocaleLowerCase().includes(term)))
+  return filtered.sort((a, b) => {
+    const rank = term ? Number(!a.title.toLocaleLowerCase().includes(term)) -
+      Number(!b.title.toLocaleLowerCase().includes(term)) : 0
+    if (rank) return rank
+    const order = sort === 'title' ? a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) :
+      a.updatedAt.localeCompare(b.updatedAt)
+    return (direction === 'asc' ? order : -order) || a.id.localeCompare(b.id)
+  })
 }
 
-function selectVisible(notes: LocalNote[], selectedId: string | null) {
+function selectVisible(notes: LocalNote[], selectedId: string | null, selectionCleared: boolean) {
+  if (selectionCleared) return null
   return notes.some(note => note.id === selectedId) ? selectedId : notes[0]?.id ?? null
 }
 
 type State = {
-  notes: LocalNote[]; allNotes: LocalNote[]; tags: string[]; tagFilter: string | null; search: string; selectedId: string | null;
+  notes: LocalNote[]; allNotes: LocalNote[]; tags: string[]; tagFilter: string | null; search: string;
+  selectedId: string | null; selectionCleared: boolean;
   status: 'loading' | 'local' | 'offline' | 'auth-required' | 'syncing' | 'synced' | 'sync-error' | 'storage-error'; error: string | null;
   progress: SyncProgress | null;
   setSearch(search: string): Promise<void>; setTagFilter(tag: string | null): Promise<void>; refresh(): Promise<void>;
+  resort(): void;
   select(id: string | null): void; create(title: string): Promise<void>;
   save(id: string, title: string, body: string, tags: string[]): Promise<void>;
   remove(id: string): Promise<void>; reset(): Promise<void>; sync(): Promise<void>;
 }
 
 export const useNotes = create<State>((set, get) => ({
-  notes: [], allNotes: [], tags: [], tagFilter: null, search: '', selectedId: null, status: 'loading', error: null, progress: null,
+  notes: [], allNotes: [], tags: [], tagFilter: null, search: '', selectedId: null, selectionCleared: false,
+  status: 'loading', error: null, progress: null,
   async setSearch(search) { set(state => {
     const notes = visibleNotes(state.allNotes, search, state.tagFilter)
-    return { search, notes, selectedId: selectVisible(notes, state.selectedId) }
+    return { search, notes, selectedId: selectVisible(notes, state.selectedId, state.selectionCleared) }
   }) },
   async setTagFilter(tagFilter) { set(state => {
     const notes = visibleNotes(state.allNotes, state.search, tagFilter)
-    return { tagFilter, notes, selectedId: selectVisible(notes, state.selectedId) }
+    return { tagFilter, notes, selectedId: selectVisible(notes, state.selectedId, state.selectionCleared) }
   }) },
+  resort() { set(state => ({ notes: visibleNotes(state.allNotes, state.search, state.tagFilter) })) },
   async refresh() {
     const sort = usePreferences.getState().sort
     const accountId = activeAccountId()
@@ -50,19 +62,19 @@ export const useNotes = create<State>((set, get) => ({
       set(state => {
         const notes = visibleNotes(allNotes, state.search, state.tagFilter)
         const tags = [...new Set(allNotes.flatMap(note => note.tags))].sort()
-        return { allNotes, notes, tags, selectedId: selectVisible(notes, state.selectedId),
+        return { allNotes, notes, tags, selectedId: selectVisible(notes, state.selectedId, state.selectionCleared),
         ...(state.status === 'storage-error' ? {
           status: (accountId ? 'offline' : 'local') as State['status'], error: null,
         } : {}) }
       })
     } catch (error) { set({ status: 'storage-error', error: String(error) }) }
   },
-  select(selectedId) { set({ selectedId }) },
+  select(selectedId) { set({ selectedId, selectionCleared: selectedId === null }) },
   async create(title) {
     const id = crypto.randomUUID()
     try { await saveNote(id, title.trim().slice(0, 500) || 'Untitled', '') }
     catch (error) { set({ status: 'storage-error', error: String(error) }); return }
-    set({ search: '', tagFilter: null, selectedId: id })
+    set({ search: '', tagFilter: null, selectedId: id, selectionCleared: false })
     await get().refresh()
     void get().sync()
   },
@@ -80,14 +92,14 @@ export const useNotes = create<State>((set, get) => ({
     if (!note) return
     try { await saveNote(id, note.title, note.body, true, undefined, note.tags) }
     catch (error) { set({ status: 'storage-error', error: String(error) }); return }
-    set({ selectedId: null })
+    set({ selectedId: null, selectionCleared: false })
     await get().refresh()
     void get().sync()
   },
   async reset() {
     clearTimeout(editSyncTimer)
     await resetAllNotes()
-    set({ notes: [], allNotes: [], tags: [], selectedId: null, search: '', tagFilter: null,
+    set({ notes: [], allNotes: [], tags: [], selectedId: null, selectionCleared: false, search: '', tagFilter: null,
       status: activeAccountId() ? 'synced' : 'local', error: null, progress: null })
   },
   async sync() {
