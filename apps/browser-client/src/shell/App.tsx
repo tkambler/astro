@@ -23,11 +23,18 @@ export function App() {
   const [settings, setSettings] = useState(false)
   const [accountPanel, setAccountPanel] = useState(false)
   const [mobileEditor, setMobileEditor] = useState(false)
+  const [mobileLayout, setMobileLayout] = useState(() => matchMedia('(max-width: 700px)').matches)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [tagMenu, setTagMenu] = useState(false)
   const input = useRef<HTMLInputElement>(null)
+  const results = useRef<HTMLDivElement>(null)
   const selected = notes.find(note => note.id === selectedId) ?? null
   useEffect(() => {
-    void refresh().then(async () => { await useAccount.getState().check(); await refresh(); await sync() })
+    let mounted = true
+    void (async () => {
+      try { await refresh(); await useAccount.getState().check(); await refresh(); await sync() }
+      finally { if (mounted) setInitialLoading(false) }
+    })()
     const online = () => { void useAccount.getState().check().then(async () => { await refresh(); await sync() }) }
     const accountChanged = (event: StorageEvent) => {
       if (event.key === 'astronote-account-id') void useAccount.getState().check().then(async () => { await refresh(); await sync() })
@@ -36,7 +43,7 @@ export function App() {
     window.addEventListener('online', online)
     window.addEventListener('storage', accountChanged)
     const timer = window.setInterval(() => { if (navigator.onLine) void sync() }, 30_000)
-    return () => { unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged); window.clearInterval(timer) }
+    return () => { mounted = false; unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged); window.clearInterval(timer) }
   }, [])
   useEffect(() => {
     if (!account || status === 'auth-required') return
@@ -49,6 +56,12 @@ export function App() {
     media.addEventListener('change', apply)
     return () => media.removeEventListener('change', apply)
   }, [preferences])
+  useEffect(() => {
+    const media = matchMedia('(max-width: 700px)')
+    const update = () => setMobileLayout(media.matches)
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
   useEffect(() => { void refresh() }, [preferences.sort])
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -76,7 +89,7 @@ export function App() {
   }
   const mobileDetail = mobileEditor || settings || accountPanel
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
-    <div className="mobile-list-heading"><span>NOTES</span><span>{notes.length}</span></div>
+    <button className="mobile-list-heading" aria-label="Scroll notes to top" onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
     <header className="omnibar">
       <span className="prompt">❯</span>
       <input ref={input} aria-label="Search or create a note" placeholder="Search or create a note…" value={search}
@@ -96,7 +109,7 @@ export function App() {
     <div className="workspace">
       <aside className={`sidebar ${mobileEditor || settings || accountPanel ? 'mobile-hidden' : ''}`}>
         <div className="sidebar-heading"><span>{tagFilter ? `TAG · ${tagFilter}` : search ? 'RESULTS · RANKED' : 'ALL NOTES'}</span><span>{preferences.sort === 'modified' ? 'MODIFIED ↓' : 'TITLE ↓'}</span></div>
-        <div className="results">
+        <div className="results" ref={results}>
           {notes.map(note => <button key={note.id} className={`result ${selectedId === note.id ? 'selected' : ''}`}
             onClick={() => { select(note.id); setMobileEditor(true); setSettings(false) }}>
             <span className="result-line"><strong>{note.title || 'Untitled'}</strong><small>{new Date(note.updatedAt).toLocaleDateString()}</small></span>
@@ -104,7 +117,9 @@ export function App() {
             {preferences.showTags && !!note.tags.length && <span className="result-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}
             {note.dirty && <span className="pending">● pending sync</span>}
           </button>)}
-          {!notes.length && <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>}
+          {!notes.length && (initialLoading
+            ? <div className="empty-results loading-results" role="status"><span className="loading-spinner" aria-hidden="true" />Loading notes…</div>
+            : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
         </div>
         <button className="create-row" onClick={() => void create(search)}>＋ Create note {search && `“${search}”`}</button>
         <div className="sidebar-footer"><span>{preferences.showPreviews ? 'previews on' : 'previews off'} &nbsp; · &nbsp; ⌘K omnibar</span><span>{notes.length} notes</span></div>
@@ -113,7 +128,7 @@ export function App() {
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
           : settings ? <Settings onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} />
-          : selected ? <NoteEditor key={selected.id} note={selected} onSave={save} onDelete={async id => { await remove(id); setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
+          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} onSave={save} onDelete={async id => { await remove(id); setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
@@ -125,8 +140,7 @@ export function App() {
         {tags.map(tag => <button key={tag} aria-pressed={tagFilter === tag} onClick={() => { void setTagFilter(tag); setTagMenu(false) }}>#{tag}</button>)}
         {!tags.length && <span>No tags yet</span>}
       </div>}
-      <button onClick={() => { void setSearch(''); void setTagFilter(null); setTagMenu(false); input.current?.focus() }}>ALL</button>
-      <button aria-expanded={tagMenu} aria-label="Filter by tag" onClick={() => setTagMenu(value => !value)}>{tagFilter ? `#${tagFilter}` : 'TAGS'}</button>
+      <button className="mobile-tags" aria-expanded={tagMenu} aria-label="Filter by tag" onClick={() => setTagMenu(value => !value)}>{tagFilter ? `#${tagFilter}` : 'TAGS'}</button>
       <button className="mobile-account" onClick={() => { setAccountPanel(true); setSettings(false) }} aria-label="Account">◉</button>
       <button className="mobile-settings" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
       <button className="mobile-new" onClick={() => { void create(''); setMobileEditor(true) }}>NEW ›</button>
@@ -147,6 +161,7 @@ function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
   const [moreMenu, setMoreMenu] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const editor = useRef<MDXEditorMethods>(null)
+  const linkTouch = useRef<{ link: HTMLAnchorElement; x: number; y: number } | null>(null)
   const content = useRef({ title: note.title, body: note.body, tags: note.tags })
   useEffect(() => {
     if (note.dirty) return
@@ -177,7 +192,25 @@ function NoteEditor({ note, onSave, onDelete, onBack }: { note: LocalNote;
       <input aria-label="Add tag" placeholder="+ tag" value={tagInput} onChange={event => setTagInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addTag() } }} onBlur={() => { if (tagInput.trim()) addTag() }} /></div>
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
     <div className="editor-toggle"><button className={mode === 'rich' ? 'active' : ''} onClick={() => setMode('rich')}>RICH</button><button className={mode === 'source' ? 'active' : ''} onClick={() => setMode('source')}>SOURCE</button><button className={mode === 'diff' ? 'active' : ''} onClick={() => setMode('diff')}>DIFF</button></div>
-    <div className="editor-body">
+    <div className="editor-body" onTouchCancelCapture={() => { linkTouch.current = null }} onTouchStartCapture={event => {
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null
+      const touch = event.touches[0]
+      linkTouch.current = link instanceof HTMLAnchorElement && touch ? { link, x: touch.clientX, y: touch.clientY } : null
+    }} onTouchEndCapture={event => {
+      const start = linkTouch.current
+      linkTouch.current = null
+      const touch = event.changedTouches[0]
+      if (!start || !touch || Math.hypot(touch.clientX - start.x, touch.clientY - start.y) > 10) return
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null
+      if (link !== start.link) return
+      let href: URL
+      try { href = new URL(start.link.getAttribute('href')!, window.location.href) }
+      catch { return }
+      if (!['http:', 'https:', 'mailto:', 'tel:'].includes(href.protocol)) return
+      event.preventDefault()
+      event.stopPropagation()
+      window.open(href.href, '_blank', 'noopener,noreferrer')
+    }}>
       {mode === 'diff' ? <NoteDiff previousTitle={note.syncedTitle} title={title} previousBody={note.syncedBody} body={body} />
         : mode === 'source' ? <textarea aria-label="Markdown source" spellCheck={spellcheck} value={body} onChange={event => { setBody(event.target.value); save(content.current.title, event.target.value) }} />
         : <MDXEditor ref={editor} key={`${note.id}-${mode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}

@@ -1,14 +1,28 @@
 import { create } from 'zustand'
 import type { LocalNote } from '../local'
-import { activeAccountId, listNotes, listTags, saveNote } from '../local'
+import { activeAccountId, listNotes, saveNote } from '../local'
 import { resetAllNotes, syncNotes, type SyncProgress } from '../sync'
 import { usePreferences } from '../../preferences'
 import { useAccount } from '../../account'
 
 let editSyncTimer: ReturnType<typeof setTimeout> | undefined
 
+function visibleNotes(notes: LocalNote[], search: string, tagFilter: string | null) {
+  const term = search.toLocaleLowerCase()
+  const filtered = notes.filter(note => (!tagFilter || note.tags.includes(tagFilter)) &&
+    (!term || note.title.toLocaleLowerCase().includes(term) || note.body.toLocaleLowerCase().includes(term) ||
+      note.tags.join(' ').toLocaleLowerCase().includes(term)))
+  if (!term) return filtered
+  return filtered.sort((a, b) => Number(!a.title.toLocaleLowerCase().includes(term)) -
+    Number(!b.title.toLocaleLowerCase().includes(term)))
+}
+
+function selectVisible(notes: LocalNote[], selectedId: string | null) {
+  return notes.some(note => note.id === selectedId) ? selectedId : notes[0]?.id ?? null
+}
+
 type State = {
-  notes: LocalNote[]; tags: string[]; tagFilter: string | null; search: string; selectedId: string | null;
+  notes: LocalNote[]; allNotes: LocalNote[]; tags: string[]; tagFilter: string | null; search: string; selectedId: string | null;
   status: 'loading' | 'local' | 'offline' | 'auth-required' | 'syncing' | 'synced' | 'sync-error' | 'storage-error'; error: string | null;
   progress: SyncProgress | null;
   setSearch(search: string): Promise<void>; setTagFilter(tag: string | null): Promise<void>; refresh(): Promise<void>;
@@ -18,22 +32,29 @@ type State = {
 }
 
 export const useNotes = create<State>((set, get) => ({
-  notes: [], tags: [], tagFilter: null, search: '', selectedId: null, status: 'loading', error: null, progress: null,
-  async setSearch(search) { set({ search }); await get().refresh() },
-  async setTagFilter(tagFilter) { set({ tagFilter }); await get().refresh() },
+  notes: [], allNotes: [], tags: [], tagFilter: null, search: '', selectedId: null, status: 'loading', error: null, progress: null,
+  async setSearch(search) { set(state => {
+    const notes = visibleNotes(state.allNotes, search, state.tagFilter)
+    return { search, notes, selectedId: selectVisible(notes, state.selectedId) }
+  }) },
+  async setTagFilter(tagFilter) { set(state => {
+    const notes = visibleNotes(state.allNotes, state.search, tagFilter)
+    return { tagFilter, notes, selectedId: selectVisible(notes, state.selectedId) }
+  }) },
   async refresh() {
-    const search = get().search
-    const tagFilter = get().tagFilter
     const sort = usePreferences.getState().sort
     const accountId = activeAccountId()
     try {
-      const [notes, tags] = await Promise.all([listNotes(search, sort, tagFilter), listTags()])
-      if (get().search !== search || get().tagFilter !== tagFilter || usePreferences.getState().sort !== sort || activeAccountId() !== accountId) return
-      set(state => ({ notes, tags, selectedId: notes.some(note => note.id === state.selectedId)
-        ? state.selectedId : notes[0]?.id ?? null,
+      const allNotes = await listNotes('', sort)
+      if (usePreferences.getState().sort !== sort || activeAccountId() !== accountId) return
+      set(state => {
+        const notes = visibleNotes(allNotes, state.search, state.tagFilter)
+        const tags = [...new Set(allNotes.flatMap(note => note.tags))].sort()
+        return { allNotes, notes, tags, selectedId: selectVisible(notes, state.selectedId),
         ...(state.status === 'storage-error' ? {
           status: (accountId ? 'offline' : 'local') as State['status'], error: null,
-        } : {}) }))
+        } : {}) }
+      })
     } catch (error) { set({ status: 'storage-error', error: String(error) }) }
   },
   select(selectedId) { set({ selectedId }) },
@@ -66,7 +87,7 @@ export const useNotes = create<State>((set, get) => ({
   async reset() {
     clearTimeout(editSyncTimer)
     await resetAllNotes()
-    set({ notes: [], tags: [], selectedId: null, search: '', tagFilter: null,
+    set({ notes: [], allNotes: [], tags: [], selectedId: null, search: '', tagFilter: null,
       status: activeAccountId() ? 'synced' : 'local', error: null, progress: null })
   },
   async sync() {
