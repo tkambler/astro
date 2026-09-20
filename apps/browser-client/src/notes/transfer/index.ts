@@ -27,15 +27,16 @@ export async function exportNotes() {
 }
 
 /** Imports backup notes as new local notes; sync can run later when online. */
-export async function importNotes(file: File) {
+export async function importNotes(file: File, onProgress?: (completed: number, total: number) => void) {
   if (file.size > 50 * 1024 * 1024) throw new Error('Backup exceeds 50 MB')
   const data = backup.parse(JSON.parse(await file.text()))
-  await importLocalNotes(data.notes)
+  onProgress?.(0, data.notes.length)
+  await importLocalNotes(data.notes, onProgress)
   return data.notes.length
 }
 
 /** Imports Markdown and text files as new notes in one local transaction. */
-export async function importTextFiles(files: FileList | File[]) {
+export async function importTextFiles(files: FileList | File[], onProgress?: (completed: number, total: number) => void) {
   const selected = Array.from(files)
   if (!selected.length) return 0
   const accountId = activeAccountId()
@@ -51,6 +52,7 @@ export async function importTextFiles(files: FileList | File[]) {
     notes.push(textNote(file.name, body))
   }
   if (activeAccountId() !== accountId) throw new Error('Account changed during import; select the files again')
-  await importLocalNotes(notes)
+  onProgress?.(0, notes.length)
+  await importLocalNotes(notes, onProgress)
   return notes.length
 }

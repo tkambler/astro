@@ -122,6 +122,8 @@ button { cursor: pointer; }
 .setting-field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .setting-field select:disabled { opacity: .5; cursor: not-allowed; }
 .backup-actions { display: flex; flex-wrap: wrap; gap: 10px; }.backup-actions button { border: 1px solid var(--line); border-radius: 5px; background: var(--bg-raised); color: var(--text-body); padding: 9px 12px; font-size: 12px; }
+.import-progress { display: grid; gap: 7px; margin-top: 14px; color: var(--text-secondary); font-size: 12px; }
+.import-progress progress { width: 100%; height: 6px; accent-color: var(--accent); }
 .settings-content .settings-feedback { margin-top: 14px; }
 .notes-danger-zone { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 36px; padding-top: 24px; border-top: 1px solid var(--line); line-height: 1.5; }
 .notes-danger-zone h2 { color: #a72f25; margin: 0; }.notes-danger-zone > div { color: var(--text-secondary); }

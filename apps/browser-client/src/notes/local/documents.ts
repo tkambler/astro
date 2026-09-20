@@ -37,16 +37,17 @@ export async function saveNote(id: string, title: string, body: string, deleted 
 }
 /** Adds a validated backup in one local transaction, bound to the active workspace. */
 export async function importLocalNotes(notes: { title: string; body: string; tags?: string[];
-  createdAt?: string; updatedAt?: string }[]) {
+  createdAt?: string; updatedAt?: string }[], onProgress?: (completed: number, total: number) => void) {
   const ownerId = owner()
   await ready()
   await db.transaction(async tx => {
-    for (const note of notes) {
+    for (const [index, note] of notes.entries()) {
       const now = new Date().toISOString()
       await tx.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,dirty,mutation_id,base_revision,owner_id,tags)
         VALUES ($1,$2,$3,0,$4,$5,true,$6,0,$7,$8::text[])`,
       [crypto.randomUUID(), note.title, note.body, note.createdAt ?? note.updatedAt ?? now,
         note.updatedAt ?? note.createdAt ?? now, crypto.randomUUID(), ownerId, note.tags ?? []])
+      onProgress?.(index + 1, notes.length)
     }
   })
   announceChange()

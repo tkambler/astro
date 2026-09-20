@@ -13,6 +13,7 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
   mobileLayout: boolean; onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void> }) {
   const [section, setSection] = useState<Section | null>(mobileLayout ? null : 'Appearance')
   const [message, setMessage] = useState('')
+  const [importProgress, setImportProgress] = useState<{ label: string; completed: number; total: number } | null>(null)
   const [storage, setStorage] = useState<DeviceStorage | null>(null)
   const backupInput = useRef<HTMLInputElement>(null)
   const textInput = useRef<HTMLInputElement>(null)
@@ -28,20 +29,30 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
   useEffect(() => { void deviceStorage().then(setStorage) }, [])
   const handleImport = async (file: File | undefined) => {
     if (!file) return
+    setMessage('')
+    setImportProgress({ label: 'Reading Backup', completed: 0, total: 0 })
     try {
-      const count = await importNotes(file)
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      const count = await importNotes(file, (completed, total) => setImportProgress({ label: 'Importing Notes', completed, total }))
+      setImportProgress({ label: 'Loading Notes', completed: count, total: count })
       await onNotesImported()
       setMessage(`Imported ${count} ${count === 1 ? 'note' : 'notes'} on this device.`)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed') }
+    finally { setImportProgress(null) }
     if (backupInput.current) backupInput.current.value = ''
   }
   const handleTextImport = async (files: FileList | null) => {
     if (!files?.length) return
+    setMessage('')
+    setImportProgress({ label: 'Reading Files', completed: 0, total: files.length })
     try {
-      const count = await importTextFiles(files)
+      await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+      const count = await importTextFiles(files, (completed, total) => setImportProgress({ label: 'Importing Notes', completed, total }))
+      setImportProgress({ label: 'Loading Notes', completed: count, total: count })
       await onNotesImported()
       setMessage(`Imported ${count} ${count === 1 ? 'note' : 'notes'} on this device.`)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed') }
+    finally { setImportProgress(null) }
     if (textInput.current) textInput.current.value = ''
   }
   const handleReset = async () => {
@@ -95,8 +106,9 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
               setMessage(granted ? 'Device storage protection enabled.' : 'Browser did not grant persistent storage. Keep a backup of important notes.')
             }).catch(error => setMessage(String(error))) }}>Protect Device Storage</button>}</div>
           <div className="backup-actions"><Button onClick={() => { void exportNotes().then(count => setMessage(`Exported ${count} notes.`)).catch(error => setMessage(String(error))) }}>Export Backup</Button>
-          <Button onClick={() => backupInput.current?.click()}>Import Backup</Button><input ref={backupInput} type="file" accept="application/json,.json" hidden onChange={event => { void handleImport(event.target.files?.[0]) }} />
-          <Button onClick={() => textInput.current?.click()}>Import Markdown/Text Files</Button><input ref={textInput} type="file" accept=".md,.MD,.txt,.TXT" multiple hidden onChange={event => { void handleTextImport(event.target.files) }} /></div>
+          <Button disabled={!!importProgress} onClick={() => backupInput.current?.click()}>Import Backup</Button><input ref={backupInput} type="file" accept="application/json,.json" hidden onChange={event => { void handleImport(event.target.files?.[0]) }} />
+          <Button disabled={!!importProgress} onClick={() => textInput.current?.click()}>Import Markdown/Text Files</Button><input ref={textInput} type="file" accept=".md,.MD,.txt,.TXT" multiple hidden onChange={event => { void handleTextImport(event.target.files) }} /></div>
+          {importProgress && <div className="import-progress" role="status" aria-live="polite"><span>{importProgress.label}{importProgress.total ? ` · ${importProgress.completed} of ${importProgress.total}` : '…'}</span><progress max={importProgress.total || 1} value={importProgress.label === 'Loading Notes' ? undefined : importProgress.completed} /></div>}
           {message && <p className="settings-feedback" role="status">{message}</p>}
           <div className="notes-danger-zone"><h2>DANGER ZONE</h2>
             <div>Delete every note in {hasAccountNotes ? 'this account and on this device' : 'this guest workspace on this device'}. This cannot be undone.</div>
