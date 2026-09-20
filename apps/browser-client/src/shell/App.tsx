@@ -56,10 +56,15 @@ export function App() {
   const [mobileLayout, setMobileLayout] = useState(() => matchMedia('(max-width: 700px)').matches)
   const [initialLoad, setInitialLoad] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [tagMenu, setTagMenu] = useState(false)
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
+  const [noteMenu, setNoteMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const focusShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
   const input = useRef<HTMLInputElement>(null)
   const results = useRef<HTMLDivElement>(null)
   const sortMenu = useRef<HTMLDetailsElement>(null)
+  const noteMenuRef = useRef<HTMLDivElement>(null)
+  const swipeStart = useRef<{ id: string; x: number; y: number } | null>(null)
+  const suppressSwipeClick = useRef<{ id: string; until: number } | null>(null)
   const loadAttempt = useRef(0)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const selected = notes.find(note => note.id === selectedId) ?? null
@@ -133,6 +138,22 @@ export function App() {
     return () => document.removeEventListener('pointerdown', closeSortMenu)
   }, [])
   useEffect(() => {
+    if (!noteMenu) return
+    noteMenuRef.current?.querySelector('button')?.focus()
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!noteMenuRef.current?.contains(event.target as Node)) setNoteMenu(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.stopPropagation(); setNoteMenu(null) }
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape, true)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape, true)
+    }
+  }, [noteMenu])
+  useEffect(() => {
     const handler = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); input.current?.focus() }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
@@ -158,6 +179,16 @@ export function App() {
   }
   const mobileDetail = mobileEditor || settings || accountPanel
   const signedIn = !!account && status !== 'auth-required'
+  const finishSwipe = (id: string, x: number, y: number) => {
+    const start = swipeStart.current
+    swipeStart.current = null
+    if (!mobileLayout || start?.id !== id) return
+    const dx = x - start.x
+    const dy = y - start.y
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.25) return
+    setOpenSwipeId(dx < 0 ? id : null)
+    suppressSwipeClick.current = { id, until: Date.now() + 500 }
+  }
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
     <button className="mobile-list-heading" aria-label="Scroll notes to top" onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
     <header className="omnibar">
@@ -188,9 +219,27 @@ export function App() {
             </div>
           </details>
         </div>
-        <div className="results" ref={results}>
-          {notes.map(note => <button key={note.id} className={`result ${selectedId === note.id ? 'selected' : ''}`}
+        <div className="results" ref={results} onScroll={() => setNoteMenu(null)}>
+          {notes.map(note => <div key={note.id} className={`result-swipe ${openSwipeId === note.id ? 'swipe-open' : ''}`}
+            onTouchStart={event => { const touch = event.touches[0]; if (touch) swipeStart.current = { id: note.id, x: touch.clientX, y: touch.clientY } }}
+            onTouchEnd={event => { const touch = event.changedTouches[0]; if (touch) finishSwipe(note.id, touch.clientX, touch.clientY) }}
+            onTouchCancel={() => { swipeStart.current = null }}>
+            <button className={`result ${selectedId === note.id ? 'selected' : ''}`}
+            onContextMenu={event => {
+              event.preventDefault()
+              const rect = event.currentTarget.getBoundingClientRect()
+              const x = event.clientX || rect.left + 16
+              const y = event.clientY || rect.top + 16
+              setNoteMenu({ id: note.id, x: Math.max(8, Math.min(x, window.innerWidth - 168)),
+                y: Math.max(8, Math.min(y, window.innerHeight - 56)) })
+              setOpenSwipeId(null)
+            }}
             onClick={event => {
+              if (suppressSwipeClick.current?.id === note.id && Date.now() < suppressSwipeClick.current.until) {
+                suppressSwipeClick.current = null
+                return
+              }
+              setOpenSwipeId(null)
               if (event.metaKey && selectedId === note.id) { select(null); setMobileEditor(false) }
               else { select(note.id); setMobileEditor(true) }
               setSettings(false)
@@ -198,7 +247,10 @@ export function App() {
             <span className="result-line"><strong>{note.title || 'Untitled'}</strong>{account && status !== 'auth-required' && note.dirty && <svg className="result-sync" role="img" aria-label="Sync pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18a5 5 0 0 1-.5-9.97A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 8.5" /><path d="M12 20V12m-3 3 3-3 3 3" /></svg>}</span>
             <span className="result-meta"><small>{new Date(note.updatedAt).toLocaleDateString()}</small>{preferences.showTags && !!note.tags.length && <span className="result-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}</span>
             {preferences.showPreviews && <span className="preview">{notePreview(note.body)}</span>}
-          </button>)}
+            </button>
+            <button className="result-delete" type="button" aria-label={`Delete ${note.title || 'Untitled'}`} tabIndex={openSwipeId === note.id && mobileLayout ? 0 : -1}
+              onClick={() => { setOpenSwipeId(null); void remove(note.id) }}>Delete</button>
+          </div>)}
           {!notes.length && (initialLoad === 'loading'
             ? <div className="empty-results loading-results" role="status"><span className="loading-spinner" aria-hidden="true" />Loading notes…</div>
             : initialLoad === 'unavailable'
@@ -216,6 +268,10 @@ export function App() {
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
+    {noteMenu && <div ref={noteMenuRef} className="sidebar-note-menu" role="menu" aria-label="Note Actions"
+      style={{ left: noteMenu.x, top: noteMenu.y }}>
+      <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
+    </div>}
     <footer className="statusbar">
       <button className={`statusbar-account ${signedIn ? 'signed-in' : ''}`} title={signedIn ? account.email : 'Sign In'} onClick={() => { setAccountPanel(true); setSettings(false) }}>{signedIn ? account.email : 'Sign In'}</button>
       <div className="statusbar-right">
@@ -258,6 +314,7 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
   const mobileMoreButton = useRef<HTMLButtonElement>(null)
   const mobileMorePopup = useRef<HTMLDivElement>(null)
   const linkTouch = useRef<{ link: HTMLAnchorElement; x: number; y: number } | null>(null)
+  const editorInteracted = useRef(false)
   const content = useRef({ title: note.title, body: note.body, tags: note.tags })
   useEffect(() => {
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -271,6 +328,7 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
     if (note.dirty) return
     if (note.title !== content.current.title) setTitle(note.title)
     if (note.body !== content.current.body) {
+      editorInteracted.current = false
       setBody(note.body)
       editor.current?.setMarkdown(note.body)
     }
@@ -303,7 +361,12 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
     {invalidFrontmatter && <div className="editor-warning" role="status">Invalid YAML frontmatter. Edit it in source mode to restore the rich editor.</div>}
     {displayMode === 'source' && <EditorActionsContext.Provider value={toolbarActions}><div className="editor-source-toolbar"><EditorToolbarActions /></div></EditorActionsContext.Provider>}
-    <div className={`editor-body ${displayMode === 'source' ? 'source-editor' : ''}`} onTouchCancelCapture={() => { linkTouch.current = null }} onTouchStartCapture={event => {
+    <div className={`editor-body ${displayMode === 'source' ? 'source-editor' : ''}`}
+      onPointerDownCapture={() => { editorInteracted.current = true }}
+      onKeyDownCapture={() => { editorInteracted.current = true }}
+      onBeforeInputCapture={() => { editorInteracted.current = true }}
+      onPasteCapture={() => { editorInteracted.current = true }}
+      onTouchCancelCapture={() => { linkTouch.current = null }} onTouchStartCapture={event => {
       const link = event.target instanceof Element ? event.target.closest('a[href]') : null
       const touch = event.touches[0]
       linkTouch.current = link instanceof HTMLAnchorElement && touch ? { link, x: touch.clientX, y: touch.clientY } : null
@@ -325,7 +388,7 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
       {displayMode === 'source' ? <textarea aria-label="Markdown source" spellCheck={spellcheck} value={body} onChange={event => { setBody(event.target.value); save(content.current.title, event.target.value) }} />
         : <EditorActionsContext.Provider value={toolbarActions}><RichEditorBoundary onError={() => { setRichFailed(true); setMode('source') }}><MDXEditor ref={editor} key={`${note.id}-${displayMode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}
             onError={() => { setRichFailed(true); setMode('source') }}
-            onChange={(value, initialMarkdownNormalize) => { if (!initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} /></RichEditorBoundary></EditorActionsContext.Provider>}
+            onChange={(value, initialMarkdownNormalize) => { if (editorInteracted.current && !initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} /></RichEditorBoundary></EditorActionsContext.Provider>}
     </div>
     <div className="mobile-editor-actions"><span>{note.dirty ? 'saved locally' : 'saved'}{richFailed ? ' · source fallback' : ''}</span><button className="done" onClick={onBack}>DONE</button></div>
   </>
