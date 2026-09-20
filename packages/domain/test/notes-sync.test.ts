@@ -2,8 +2,8 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { database } from '@astronote/db'
 import { accountForSession, authenticateAccount, createSession, endSession,
-  authenticationAttemptAllowed, pullNotes, pushNotes, recoverAccount, registerAccount,
-  rotateRecoveryCode } from '../src/index.js'
+  authenticationAttemptAllowed, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
+  recoverAccount, registerAccount, resetNotes, rotateRecoveryCode } from '../src/index.js'
 import { recoveryRequest } from '@astronote/schemas'
 
 after(async () => { await database().destroy() })
@@ -70,6 +70,30 @@ test('a batch applies independent notes atomically and preserves mutation order'
   assert.deepEqual(page.changes.map(note => note.id), mutations.map(item => item.id))
   assert.ok((await pushNotes(registered.id, mutations)).results.every(item => item.status === 'applied'))
   assert.equal((await pullNotes(registered.id, 0)).changes.length, mutations.length)
+})
+
+test('reset removes only one account and rejects stale device uploads', async () => {
+  const first = await registerAccount({ email: `reset-${crypto.randomUUID()}@example.test`, password: 'test-password-long-enough' })
+  const second = await registerAccount({ email: `keep-${crypto.randomUUID()}@example.test`, password: 'test-password-long-enough' })
+  const mutation = () => ({ mutationId: crypto.randomUUID(), id: crypto.randomUUID(), baseRevision: 0,
+    title: 'Stored note', body: 'Private body', tags: [], deleted: false })
+  const old = mutation()
+  const other = mutation()
+  await pushNotes(first.id, [old])
+  await pushNotes(second.id, [other])
+  assert.equal(await noteGeneration(first.id), 0)
+  assert.equal(await resetNotes(first.id), 1)
+  assert.equal(await noteGeneration(first.id), 1)
+  assert.deepEqual((await pullNotes(first.id, 0)).changes, [])
+  assert.equal((await pullNotes(second.id, 0)).changes.length, 1)
+  for (const table of ['notes', 'note_changes', 'note_mutations']) {
+    const rows = await database()(table).where({ user_id: first.id }).count<{ count: string }[]>('* as count')
+    assert.equal(Number(rows[0]?.count), 0)
+  }
+  await assert.rejects(pushNotes(first.id, [old], 0), NoteGenerationMismatchError)
+  const fresh = await pushNotes(first.id, [mutation()], 1)
+  assert.equal(fresh.results[0]?.status, 'applied')
+  assert.equal((await pullNotes(first.id, 0)).changes.length, 1)
 })
 
 test('authentication limit is atomic across concurrent attempts and resets after its window', async () => {

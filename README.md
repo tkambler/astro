@@ -31,12 +31,12 @@ Run `npm test` for package typechecks, frontmatter parsing, and sync batch selec
 | --- | --- | --- | --- |
 | `packages/schemas` | Wire contracts | Validated note, push, and pull schemas and inferred types | Zod declarations |
 | `packages/db` | PostgreSQL connection and migrations | `database()` | Tables and migration runner; consumers should not descend into it except `domain` |
-| `packages/domain/notes` | Server note revisions and change feed | `pushNotes`, `pullNotes` through `domain` root | Transaction locking, idempotency, and row mapping |
+| `packages/domain/notes` | Server note revisions, change feed, and account reset generation | `pushNotes`, `pullNotes`, `noteGeneration`, `resetNotes` through `domain` root | Transaction locking, idempotency, deletion, and row mapping |
 | `packages/domain/accounts` | Account credentials, recovery, sessions, and attempt limits | Registration, authentication, recovery code rotation, password recovery, session lookup and revocation through `domain` root | Password and code hashing, PostgreSQL counters, and session token hashes |
 | `apps/browser-client/src/notes/local` | Device note database and pending edits | `listNotes`, `saveNote`, `pendingMutations`, `receiveNote`, acknowledgements | PGlite worker, SQL, and IndexedDB naming |
 | `apps/browser-client/src/notes/content` | Structure and sidebar text for note bodies | `splitFrontmatter(body)`, `notePreview(body)` | Frontmatter delimiters and preview cleanup |
-| `apps/browser-client/src/notes/sync` | Transfer of pending edits and server changes | `syncNotes()`, `watchRemoteChanges()` | Batch sizing, HTTP, event stream, and cursor traversal |
-| `apps/server/src/notes` | Authenticated note API and change notification | `mountNoteRoutes()` | Routes, request limits, and account-scoped stream |
+| `apps/browser-client/src/notes/sync` | Transfer of pending edits, server changes, and account resets | `syncNotes()`, `watchRemoteChanges()`, `resetAllNotes()` | Batch sizing, reset coordination, HTTP, event stream, and cursor traversal |
+| `apps/server/src/notes` | Authenticated note API and change notification | `mountNoteRoutes()` | Routes, request limits, reset generation checks, and account-scoped stream |
 | `apps/browser-client/src/notes/transfer` | Portable note transfers | `exportNotes()`, `importNotes(file)`, `importTextFiles(files)` | Backup validation, frontmatter parsing, and downloads |
 | `apps/browser-client/src/notes/storage` | Device storage retention | `deviceStorage()`, `requestPersistentStorage()` | Browser StorageManager calls |
 | `apps/browser-client/src/notes/state` | UI note state | `useNotes` | Refresh and connectivity triggers |
@@ -54,6 +54,8 @@ Sync sends independent pending notes in batches of up to 25, within the request 
 Search and tag filtering run in the local database. Search covers titles, bodies, and tags, with title matches ranked first; the list can be sorted by modification time or title. Appearance, list, and editor preferences are stored on the device. Files & sync settings can export and import a portable JSON backup, including tags, without contacting the server. An import creates new note IDs in one local transaction; those notes sync after a connection returns.
 
 Sidebar previews omit a leading YAML frontmatter block while note bodies and exports preserve it. The content module owns this shared frontmatter boundary so the import parser and sidebar use the same definition; callers use its public functions without depending on the delimiter expression.
+
+Files & sync has a dangerous Reset all notes action with a confirmation dialog. For a signed-in account it requires a server connection, permanently deletes that account's notes and change history, then clears that account's notes on this device. Guest reset clears only this device's guest notes. Other devices clear their cached copies when they next sync; a reset generation blocks stale offline devices from uploading old notes afterward. Export a backup first if the notes might be needed again.
 
 The editor offers rich text, Markdown source, and a read-only diff against the last server-acknowledged title and body. The diff baseline stays on the device, so it also works for unsynced offline edits. A push request has a 52 MB JSON body limit; the client keeps batches below 51 MiB. A note above that limit remains on the device, stays pending, and displays a sync error until it is shortened.
 

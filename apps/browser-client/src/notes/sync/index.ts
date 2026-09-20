@@ -1,5 +1,7 @@
 import { pullResult, pushResult } from '@astronote/schemas'
-import { acceptConflict, acceptPush, activeAccountId, getCursor, pendingMutations, receiveNote, setCursor } from '../local'
+import { acceptConflict, acceptPush, activeAccountId, getCursor, getGeneration, pendingMutations,
+  receiveNote, resetLocalNotes, setCursor } from '../local'
+import { useAccount } from '../../account'
 import { nextPushBatch } from './batch'
 export { watchRemoteChanges } from './changes'
 
@@ -8,28 +10,80 @@ export type SyncProgress = { completed: number; total: number }
 let inFlight: Promise<{ pushed: number; pulled: number }> | undefined
 let inFlightAccount: string | null = null
 let requestedAgain = false
+let resetInProgress = false
+let resetVersion = 0
+let syncAbort: AbortController | undefined
+
+function validGeneration(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0)
+    throw new Error('Invalid note generation from server')
+  return value
+}
+
+/** Clears this workspace after the server has permanently reset its notes. */
+export async function resetAllNotes() {
+  if (resetInProgress) throw new Error('A note reset is already in progress')
+  const accountId = activeAccountId()
+  if (accountId && (useAccount.getState().status !== 'signed-in' || useAccount.getState().account?.id !== accountId))
+    throw new Error('Sign in and reconnect before resetting notes for this account.')
+  resetInProgress = true
+  resetVersion++
+  syncAbort?.abort()
+  try {
+    await inFlight?.catch(() => undefined)
+    if (!accountId) {
+      if (activeAccountId() !== null) throw new Error('Account changed during reset')
+      await resetLocalNotes('guest', 0)
+      return
+    }
+    const response = await fetch('/api/notes', { method: 'DELETE', headers: { 'x-astronote-request': '1' } })
+    if (!response.ok) throw new Error(response.status === 401
+      ? 'Sign in before resetting notes.' : 'Could not delete notes from the server. No local notes were removed.')
+    const { generation } = await response.json() as { generation: unknown }
+    if (activeAccountId() !== accountId) throw new Error('Account changed during reset')
+    try { await resetLocalNotes(accountId, validGeneration(generation)) }
+    catch { throw new Error('Server notes were deleted, but this device could not clear its copy. Reconnect to finish the reset.') }
+  } finally { resetInProgress = false }
+}
+
 export function syncNotes(onProgress?: (progress: SyncProgress) => Promise<void>): Promise<{ pushed: number; pulled: number }> {
   const accountId = activeAccountId()
-  if (!accountId) return Promise.resolve({ pushed: 0, pulled: 0 })
+  if (!accountId || resetInProgress) return Promise.resolve({ pushed: 0, pulled: 0 })
   if (inFlight && inFlightAccount !== accountId) return inFlight.then(() => syncNotes(onProgress))
   if (!inFlight) {
     inFlightAccount = accountId
+    const version = resetVersion
+    const controller = new AbortController()
+    syncAbort = controller
     inFlight = (async () => {
       const totals = { pushed: 0, pulled: 0 }
       do {
         requestedAgain = false
-        const result = await performSync(accountId, onProgress)
+        const result = await performSync(accountId, onProgress, controller.signal, version)
         totals.pushed += result.pushed
         totals.pulled += result.pulled
-      } while (requestedAgain && activeAccountId() === accountId)
+      } while (requestedAgain && activeAccountId() === accountId && resetVersion === version)
       return totals
-    })().finally(() => { inFlight = undefined; inFlightAccount = null; requestedAgain = false })
+    })().finally(() => { inFlight = undefined; inFlightAccount = null; requestedAgain = false; syncAbort = undefined })
   } else requestedAgain = true
   return inFlight
 }
 
-async function performSync(accountId: string, onProgress?: (progress: SyncProgress) => Promise<void>) {
-  const stillActive = () => activeAccountId() === accountId
+async function performSync(accountId: string, onProgress: ((progress: SyncProgress) => Promise<void>) | undefined,
+  signal: AbortSignal, version: number) {
+  const stillActive = () => activeAccountId() === accountId && resetVersion === version && !signal.aborted
+  const reconcileGeneration = async () => {
+    const state = await fetch('/api/notes/state', { cache: 'no-store', signal })
+    if (!state.ok) throw new Error(`Note state check failed (${state.status})`)
+    const generation = validGeneration((await state.json() as { generation: unknown }).generation)
+    if (!stillActive()) return null
+    const local = await getGeneration(accountId)
+    if (generation < local) throw new Error('Server note generation is older than this device')
+    if (generation !== local) await resetLocalNotes(accountId, generation)
+    return generation
+  }
+  const generation = await reconcileGeneration()
+  if (generation === null || !stillActive()) return { pushed: 0, pulled: 0 }
   let pushed = 0
   let pulled = 0
   let completed = 0
@@ -40,7 +94,13 @@ async function performSync(accountId: string, onProgress?: (progress: SyncProgre
     if (!stillActive()) return { pushed, pulled }
     const batch = nextPushBatch(pending)
     const response = await fetch('/api/notes/push', { method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-astronote-request': '1' }, body: batch.body })
+      headers: { 'content-type': 'application/json', 'x-astronote-request': '1',
+        'x-astronote-generation': String(generation) }, body: batch.body, signal })
+    if (response.status === 409) {
+      if (await reconcileGeneration() === generation) throw new Error('Note generation changed during sync')
+      requestedAgain = true
+      return { pushed, pulled }
+    }
     if (response.status === 413) throw new Error('This note is too large to sync. It remains saved on this device.')
     if (!response.ok) throw new Error(`Push failed (${response.status})`)
     const results = pushResult.parse(await response.json()).results
@@ -61,7 +121,13 @@ async function performSync(accountId: string, onProgress?: (progress: SyncProgre
   while (hasMore) {
     if (!stillActive()) return { pushed, pulled }
     const cursor = await getCursor(accountId)
-    const response = await fetch(`/api/notes/changes?cursor=${cursor}`, { cache: 'no-store' })
+    const response = await fetch(`/api/notes/changes?cursor=${cursor}`, { cache: 'no-store',
+      headers: { 'x-astronote-generation': String(generation) }, signal })
+    if (response.status === 409) {
+      if (await reconcileGeneration() === generation) throw new Error('Note generation changed during sync')
+      requestedAgain = true
+      return { pushed, pulled }
+    }
     if (!response.ok) throw new Error(`Pull failed (${response.status})`)
     const page = pullResult.parse(await response.json())
     if (!stillActive()) return { pushed, pulled }

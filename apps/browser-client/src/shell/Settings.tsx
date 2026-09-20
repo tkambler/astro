@@ -3,16 +3,25 @@ import { accentSwatch, usePreferences, type Accent, type Theme } from '../prefer
 import { exportNotes, importNotes, importTextFiles } from '../notes/transfer'
 import { deviceStorage, requestPersistentStorage, type DeviceStorage } from '../notes/storage'
 import { Button, Switch } from '../design-system'
+import { useAccount } from '../account'
+import { activeAccountId } from '../notes/local'
 
 type Section = 'Appearance' | 'Editor' | 'Omnibar' | 'Files & sync' | 'Shortcuts' | 'About'
 const sections: Section[] = ['Appearance', 'Editor', 'Omnibar', 'Files & sync', 'Shortcuts', 'About']
 
-export function Settings({ onClose, onNotesImported }: { onClose(): void; onNotesImported(): Promise<void> }) {
+export function Settings({ onClose, onNotesImported, onNotesReset }: {
+  onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void> }) {
   const [section, setSection] = useState<Section>('Appearance')
   const [message, setMessage] = useState('')
   const [storage, setStorage] = useState<DeviceStorage | null>(null)
   const backupInput = useRef<HTMLInputElement>(null)
   const textInput = useRef<HTMLInputElement>(null)
+  const resetDialog = useRef<HTMLDialogElement>(null)
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState('')
+  const account = useAccount(state => state.account)
+  const accountStatus = useAccount(state => state.status)
+  const hasAccountNotes = activeAccountId() !== null
   const preferences = usePreferences()
   const { update } = preferences
   useEffect(() => { void deviceStorage().then(setStorage) }, [])
@@ -33,6 +42,16 @@ export function Settings({ onClose, onNotesImported }: { onClose(): void; onNote
       setMessage(`Imported ${count} ${count === 1 ? 'note' : 'notes'} on this device.`)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed') }
     if (textInput.current) textInput.current.value = ''
+  }
+  const handleReset = async () => {
+    setResetting(true); setResetError('')
+    try {
+      await onNotesReset()
+      resetDialog.current?.close()
+      setMessage('All notes in this workspace were permanently deleted.')
+      void deviceStorage().then(setStorage).catch(() => undefined)
+    } catch (error) { setResetError(error instanceof Error ? error.message : String(error)) }
+    finally { setResetting(false) }
   }
   return <div className="settings-view">
     <div className="settings-top"><button className="mobile-settings-back" onClick={onClose}>‹ notes</button><span>SETTINGS</span><span>changes save as you make them</span><button onClick={onClose}>ESC to close</button></div>
@@ -77,6 +96,23 @@ export function Settings({ onClose, onNotesImported }: { onClose(): void; onNote
           <Button onClick={() => backupInput.current?.click()}>Import backup</Button><input ref={backupInput} type="file" accept="application/json,.json" hidden onChange={event => { void handleImport(event.target.files?.[0]) }} />
           <Button onClick={() => textInput.current?.click()}>Import Markdown/text files</Button><input ref={textInput} type="file" accept=".md,.MD,.txt,.TXT" multiple hidden onChange={event => { void handleTextImport(event.target.files) }} /></div>
           {message && <p className="settings-feedback" role="status">{message}</p>}
+          <div className="notes-danger-zone"><h2>DANGER ZONE</h2>
+            <div>Delete every note in {hasAccountNotes ? 'this account and on this device' : 'this guest workspace on this device'}. This cannot be undone.</div>
+            {hasAccountNotes && accountStatus !== 'signed-in' && <div>Sign in and reconnect before resetting this account.</div>}
+            <Button className="danger-action" disabled={hasAccountNotes && accountStatus !== 'signed-in'}
+              onClick={() => { setResetError(''); resetDialog.current?.showModal() }}>Reset all notes</Button>
+          </div>
+          <dialog ref={resetDialog} className="reset-dialog" role="alertdialog" aria-labelledby="reset-notes-title" aria-describedby="reset-notes-description"
+            onCancel={event => { if (resetting) event.preventDefault() }}>
+            <h2 id="reset-notes-title">Permanently delete all notes?</h2>
+            <p id="reset-notes-description">{hasAccountNotes
+              ? `Every note for ${account?.email ?? 'this account'} will be removed from the server and this device, including unsynced edits. Other devices will clear their copies when they reconnect.`
+              : 'Every guest note on this device will be removed, including unsynced edits.'} This cannot be undone.</p>
+            {resetError && <p className="reset-error" role="alert">{resetError}</p>}
+            <div className="reset-dialog-actions"><Button disabled={resetting} onClick={() => resetDialog.current?.close()}>Cancel</Button>
+              <Button className="danger-action" disabled={resetting} onClick={() => { void handleReset() }}>
+                {resetting ? 'Deleting…' : 'Delete all notes'}</Button></div>
+          </dialog>
         </section>
         <section className={`settings-section ${section === 'Shortcuts' ? 'active' : ''}`}><h2>SHORTCUTS</h2><dl className="shortcuts"><dt>Search or create</dt><dd>⌘K / Ctrl K</dd><dt>New note</dt><dd>⌘N / Ctrl N</dd><dt>Move through results</dt><dd>↑ / ↓</dd><dt>Open result</dt><dd>Enter</dd><dt>Close settings or clear search</dt><dd>Escape</dd></dl></section>
         <section className={`settings-section ${section === 'About' ? 'active' : ''}`}><h2>ABOUT ASTRONOTE</h2><p>An offline-first place for quickly creating, finding, and editing notes.</p></section>

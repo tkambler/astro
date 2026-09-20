@@ -61,3 +61,21 @@ export async function setCursor(cursor: number, ownerId = owner()) {
   await db.query(`INSERT INTO sync_state(key,value) VALUES ($1,$2)
     ON CONFLICT(key) DO UPDATE SET value=$2`, [`cursor:${ownerId}`, String(cursor)])
 }
+
+export async function getGeneration(ownerId = owner()): Promise<number> {
+  await ready()
+  const result = await db.query<{ value: string }>(`SELECT value FROM sync_state WHERE key=$1`, [`generation:${ownerId}`])
+  return Number(result.rows[0]?.value ?? '0')
+}
+
+/** Removes every local note for one workspace, including pending edits and tombstones. */
+export async function resetLocalNotes(ownerId: string, generation: number) {
+  await ready()
+  await db.transaction(async tx => {
+    await tx.query('DELETE FROM notes WHERE owner_id=$1', [ownerId])
+    await tx.query('DELETE FROM sync_state WHERE key=$1', [`cursor:${ownerId}`])
+    await tx.query(`INSERT INTO sync_state(key,value) VALUES ($1,$2)
+      ON CONFLICT(key) DO UPDATE SET value=$2`, [`generation:${ownerId}`, String(generation)])
+  })
+  announceChange()
+}

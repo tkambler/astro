@@ -1,5 +1,5 @@
 import express, { type Express, type Response } from 'express'
-import { pullNotes, pushNotes } from '@astronote/domain'
+import { NoteGenerationMismatchError, noteGeneration, pullNotes, pushNotes, resetNotes } from '@astronote/domain'
 import { pullResult, pushRequest, pushResult } from '@astronote/schemas'
 import { events } from '@astronote/events'
 import { requireAccount } from '../account/index.js'
@@ -10,8 +10,31 @@ function fail(response: Response, error: unknown) {
   return response.status(500).json({ error: 'Internal server error' })
 }
 
+function requestedGeneration(value: string | undefined) {
+  const generation = Number(value ?? '0')
+  return Number.isSafeInteger(generation) && generation >= 0 ? generation : null
+}
+
 /** Mounts the note change feed, batched push endpoint, and change stream. */
 export function mountNoteRoutes(app: Express) {
+  app.get('/api/notes/state', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      response.set('Cache-Control', 'no-store')
+      return response.json({ generation: await noteGeneration(current.id) })
+    } catch (error) { return fail(response, error) }
+  })
+  app.delete('/api/notes', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      const generation = await resetNotes(current.id)
+      await events.emit('notes.changed', { accountId: current.id })
+      response.set('Cache-Control', 'no-store')
+      return response.json({ generation })
+    } catch (error) { return fail(response, error) }
+  })
   app.get('/api/notes/stream', async (request, response) => {
     try { await streamNotes(request, response) }
     catch (error) { if (!response.headersSent) fail(response, error); else response.end() }
@@ -22,6 +45,9 @@ export function mountNoteRoutes(app: Express) {
     try {
       const current = await requireAccount(request, response)
       if (!current) return
+      const generation = requestedGeneration(request.get('x-astronote-generation'))
+      if (generation === null) return response.status(400).json({ error: 'Invalid note generation' })
+      if (generation !== await noteGeneration(current.id)) return response.status(409).json({ error: 'Notes were reset on another device' })
       const result = pullResult.parse(await pullNotes(current.id, cursor))
       return response.json(result)
     } catch (error) { return fail(response, error) }
@@ -30,7 +56,10 @@ export function mountNoteRoutes(app: Express) {
     try {
       const current = await requireAccount(request, response)
       if (!current) return
+      const generation = requestedGeneration(request.get('x-astronote-generation'))
+      if (generation === null) return response.status(400).json({ error: 'Invalid note generation' })
       response.locals.accountId = current.id
+      response.locals.generation = generation
       next()
     } catch (error) { fail(response, error) }
   }, express.json({ limit: '52mb' }), async (request, response) => {
@@ -38,10 +67,13 @@ export function mountNoteRoutes(app: Express) {
     if (!parsed.success) return response.status(400).json({ error: parsed.error.flatten() })
     try {
       const accountId = response.locals.accountId as string
-      const result = pushResult.parse(await pushNotes(accountId, parsed.data.mutations))
+      const result = pushResult.parse(await pushNotes(accountId, parsed.data.mutations, response.locals.generation as number))
       await events.emit('sync.completed', { pushed: result.results.length, pulled: 0 })
       if (result.results.some(item => item.status === 'applied')) await events.emit('notes.changed', { accountId })
       return response.json(result)
-    } catch (error) { return fail(response, error) }
+    } catch (error) {
+      if (error instanceof NoteGenerationMismatchError) return response.status(409).json({ error: error.message })
+      return fail(response, error)
+    }
   })
 }

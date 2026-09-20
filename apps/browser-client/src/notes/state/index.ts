@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { LocalNote } from '../local'
 import { activeAccountId, listNotes, listTags, saveNote } from '../local'
-import { syncNotes, type SyncProgress } from '../sync'
+import { resetAllNotes, syncNotes, type SyncProgress } from '../sync'
 import { usePreferences } from '../../preferences'
 import { useAccount } from '../../account'
 
@@ -14,7 +14,7 @@ type State = {
   setSearch(search: string): Promise<void>; setTagFilter(tag: string | null): Promise<void>; refresh(): Promise<void>;
   select(id: string | null): void; create(title: string): Promise<void>;
   save(id: string, title: string, body: string, tags: string[]): Promise<void>;
-  remove(id: string): Promise<void>; sync(): Promise<void>;
+  remove(id: string): Promise<void>; reset(): Promise<void>; sync(): Promise<void>;
 }
 
 export const useNotes = create<State>((set, get) => ({
@@ -62,6 +62,12 @@ export const useNotes = create<State>((set, get) => ({
     set({ selectedId: null })
     await get().refresh()
     void get().sync()
+  },
+  async reset() {
+    clearTimeout(editSyncTimer)
+    await resetAllNotes()
+    set({ notes: [], tags: [], selectedId: null, search: '', tagFilter: null,
+      status: activeAccountId() ? 'synced' : 'local', error: null, progress: null })
   },
   async sync() {
     if (get().status === 'storage-error') return

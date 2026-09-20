@@ -9,11 +9,37 @@ function toNote(row: Row): Note {
     deletedAt: row.deleted_at?.toISOString() ?? null }
 }
 
+export class NoteGenerationMismatchError extends Error {
+  constructor() { super('Notes were reset on another device') }
+}
+
+/** The account generation prevents an old offline device from restoring reset notes. */
+export async function noteGeneration(userId: string): Promise<number> {
+  const user = await database()('users').where({ id: userId }).first('note_generation')
+  if (!user) throw new Error('Account not found')
+  return user.note_generation
+}
+
+/** Permanently removes an account's notes and history, then invalidates older clients. */
+export async function resetNotes(userId: string): Promise<number> {
+  return database().transaction(async tx => {
+    await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
+    const [user] = await tx('users').where({ id: userId }).increment('note_generation', 1).returning('note_generation')
+    if (!user) throw new Error('Account not found')
+    await tx('note_mutations').where({ user_id: userId }).del()
+    await tx('note_changes').where({ user_id: userId }).del()
+    await tx('notes').where({ user_id: userId }).del()
+    return user.note_generation as number
+  })
+}
+
 /** Applies each mutation once, using a server revision as the conflict boundary. */
-export async function pushNotes(userId: string, mutations: NoteMutation[]): Promise<PushResult> {
+export async function pushNotes(userId: string, mutations: NoteMutation[], generation = 0): Promise<PushResult> {
   return database().transaction(async tx => {
     // Serialize change sequence allocation so pull cursors cannot skip late commits.
     await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
+    const user = await tx('users').where({ id: userId }).first('note_generation')
+    if (!user || user.note_generation !== generation) throw new NoteGenerationMismatchError()
     const results: PushResult['results'] = []
     for (const mutation of mutations) {
       const previous = await tx('note_mutations').where({ id: mutation.mutationId, user_id: userId }).first()

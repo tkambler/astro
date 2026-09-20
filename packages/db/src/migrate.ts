@@ -5,10 +5,12 @@ import * as tags from './migrations/202609200003_tags.js'
 import * as authenticationLimits from './migrations/202609200004_authentication_limits.js'
 import * as recoveryCodes from './migrations/202609200005_recovery_codes.js'
 import * as noteCreatedAt from './migrations/202609200006_note_created_at.js'
+import * as noteResetGeneration from './migrations/202609200007_note_reset_generation.js'
 
 const migrations = { '202609200001_notes': notes, '202609200002_accounts': accounts,
   '202609200003_tags': tags, '202609200004_authentication_limits': authenticationLimits,
-  '202609200005_recovery_codes': recoveryCodes, '202609200006_note_created_at': noteCreatedAt }
+  '202609200005_recovery_codes': recoveryCodes, '202609200006_note_created_at': noteCreatedAt,
+  '202609200007_note_reset_generation': noteResetGeneration }
 
 const db = database()
 try {

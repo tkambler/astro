@@ -17,7 +17,7 @@ const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(
 
 export function App() {
   const { notes, tags, tagFilter, search, selectedId, status, error, progress, setSearch, setTagFilter,
-    refresh, select, create, save, remove, sync } = useNotes()
+    refresh, select, create, save, remove, reset, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
   const [settings, setSettings] = useState(false)
@@ -111,7 +111,8 @@ export function App() {
       </aside>
       <main className={`main-pane ${!mobileEditor && !settings && !accountPanel ? 'mobile-hidden' : ''}`}>
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
-          : settings ? <Settings onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }} />
+          : settings ? <Settings onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
+              onNotesReset={reset} />
           : selected ? <NoteEditor key={selected.id} note={selected} onSave={save} onDelete={async id => { await remove(id); setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
