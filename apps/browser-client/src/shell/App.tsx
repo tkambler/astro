@@ -99,12 +99,13 @@ export function App() {
     const unsubscribe = onNotesChanged(() => { void refresh() })
     window.addEventListener('online', online)
     window.addEventListener('storage', accountChanged)
-    const timer = window.setInterval(() => { if (navigator.onLine) void sync() }, 30_000)
-    return () => { ++loadAttempt.current; if (loadTimer.current) clearTimeout(loadTimer.current); unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged); window.clearInterval(timer) }
+    return () => { ++loadAttempt.current; if (loadTimer.current) clearTimeout(loadTimer.current); unsubscribe(); window.removeEventListener('online', online); window.removeEventListener('storage', accountChanged) }
   }, [])
   useEffect(() => {
     if (!account || status === 'auth-required') return
-    return watchRemoteChanges(() => { void useNotes.getState().sync() })
+    return watchRemoteChanges(() => { void useNotes.getState().sync() }, () => {
+      void useAccount.getState().check().then(() => useNotes.getState().sync())
+    })
   }, [account?.id, status === 'auth-required'])
   useEffect(() => {
     const apply = () => applyPreferences(preferences)

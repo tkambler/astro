@@ -1,8 +1,9 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
+import { createServer } from 'node:http'
 import { startLogging } from '@astronote/log'
 import { mountAccountRoutes } from './account/index.js'
 import { mountFrontend } from './frontend/index.js'
-import { mountNoteRoutes } from './notes/index.js'
+import { mountNoteRoutes, mountNoteSockets } from './notes/index.js'
 
 startLogging()
 const app = express()
@@ -25,4 +26,6 @@ app.use((error: unknown, _request: Request, response: Response, next: NextFuncti
     return response.status(413).json({ error: 'Request exceeds the size limit' })
   next(error)
 })
-app.listen(Number(process.env.PORT ?? 3001))
+const server = createServer(app)
+await mountNoteSockets(server)
+server.listen(Number(process.env.PORT ?? 3001))

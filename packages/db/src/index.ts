@@ -1,4 +1,5 @@
 import knex from 'knex'
+export { publishNoteChange, watchNoteChanges } from './notifications.js'
 
 let instance: ReturnType<typeof knex> | undefined
 export function database() {

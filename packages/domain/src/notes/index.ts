@@ -1,4 +1,5 @@
-import { database } from '@astronote/db'
+import { database, publishNoteChange, watchNoteChanges } from '@astronote/db'
+export { watchNoteChanges }
 import type { Note, NoteMutation, PushResult, PullResult } from '@astronote/schemas'
 
 type Row = { id: string; title: string; body: string; tags: string[]; revision: number;
@@ -29,6 +30,7 @@ export async function resetNotes(userId: string): Promise<number> {
     await tx('note_mutations').where({ user_id: userId }).del()
     await tx('note_changes').where({ user_id: userId }).del()
     await tx('notes').where({ user_id: userId }).del()
+    await publishNoteChange(tx, userId)
     return user.note_generation as number
   })
 }
@@ -41,6 +43,7 @@ export async function pushNotes(userId: string, mutations: NoteMutation[], gener
     const user = await tx('users').where({ id: userId }).first('note_generation')
     if (!user || user.note_generation !== generation) throw new NoteGenerationMismatchError()
     const results: PushResult['results'] = []
+    let changed = false
     for (const mutation of mutations) {
       const previous = await tx('note_mutations').where({ id: mutation.mutationId, user_id: userId }).first()
       const current = await tx('notes').where({ id: mutation.id, user_id: userId }).first<Row>()
@@ -68,8 +71,10 @@ export async function pushNotes(userId: string, mutations: NoteMutation[], gener
       else await tx('notes').insert({ ...data, user_id: userId })
       await tx('note_changes').insert({ note_id: mutation.id, user_id: userId, revision })
       await tx('note_mutations').insert({ id: mutation.mutationId, note_id: mutation.id, user_id: userId })
+      changed = true
       results.push({ status: 'applied', mutationId: mutation.mutationId, note: toNote(data) })
     }
+    if (changed) await publishNoteChange(tx, userId)
     return { results }
   })
 }

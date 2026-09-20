@@ -12,7 +12,7 @@ async function limited(request: Request, response: Response) {
   response.status(429).json({ error: 'Too many attempts. Try again later.' })
   return true
 }
-function token(request: Request) {
+function token(request: { headers: { cookie?: string } }) {
   const cookies = request.headers.cookie?.split(';') ?? []
   return cookies.map(cookie => cookie.trim()).find(cookie => cookie.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1) ?? ''
 }
@@ -23,7 +23,7 @@ function clearCookie(response: Response) {
   response.setHeader('Set-Cookie', `${cookieName}=; Max-Age=0; ${cookieAttributes}`)
 }
 
-export function currentAccount(request: Request) {
+export function currentAccount(request: { headers: { cookie?: string } }) {
   return accountForSession(token(request))
 }
 

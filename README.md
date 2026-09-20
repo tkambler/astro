@@ -1,6 +1,6 @@
 # Astronote
 
-An offline-first note app. The browser stores notes and pending edits in PGlite's IndexedDB-backed PostgreSQL database. The service worker precaches the app shell, bundled database assets, and local font files, so the app can reopen offline after its first successful load. The open app retries sync on reconnect, after edits, and when the server signals a change. A 30-second interval catches missed signals.
+An offline-first note app. The browser stores notes and pending edits in PGlite's IndexedDB-backed PostgreSQL database. The service worker precaches the app shell, bundled database assets, and local font files, so the app can reopen offline after its first successful load. The open app retries sync on reconnect, after edits, and when the server signals a change through an authenticated WebSocket. Reopening the socket reconciles changes missed while disconnected.
 
 ## Run locally
 
@@ -25,18 +25,20 @@ The service worker is installed in a production build. Test offline reload from 
 
 Run `npm test` for package typechecks, frontmatter parsing, and sync batch selection tests. With `DATABASE_URL` pointed at a disposable PostgreSQL database, run `npm run test:integration` to migrate it and verify account isolation, sync revisions, batches, retries, tags, timestamps, and tombstones.
 
+To test realtime delivery, start two API instances against the same disposable database on separate ports. Set `TEST_SERVER_A` and `TEST_SERVER_B` to their origins, then run `node --test apps/server/test/realtime.test.ts`. The test checks authenticated, account-scoped WebSocket hints across instances and cursor catch-up after reconnect.
+
 ## Modules
 
 | Module | Owns | Public API | Private details |
 | --- | --- | --- | --- |
 | `packages/schemas` | Wire contracts | Validated note, push, and pull schemas and inferred types | Zod declarations |
-| `packages/db` | PostgreSQL connection and migrations | `database()` | Tables and migration runner; consumers should not descend into it except `domain` |
-| `packages/domain/notes` | Server note revisions, change feed, and account reset generation | `pushNotes`, `pullNotes`, `noteGeneration`, `resetNotes` through `domain` root | Transaction locking, idempotency, deletion, and row mapping |
+| `packages/db` | PostgreSQL connection, migrations, and change notifications | `database()`, `publishNoteChange()`, `watchNoteChanges()` | Tables, migration runner, notification channel, and reconnecting listener; only `domain` consumes this package |
+| `packages/domain/notes` | Server note revisions, change feed, account reset generation, and change notifications | `pushNotes`, `pullNotes`, `noteGeneration`, `resetNotes`, `watchNoteChanges` through `domain` root | Transaction locking, idempotency, deletion, notifications, and row mapping |
 | `packages/domain/accounts` | Account credentials, recovery, sessions, and attempt limits | Registration, authentication, recovery code rotation, password recovery, session lookup and revocation through `domain` root | Password and code hashing, PostgreSQL counters, and session token hashes |
 | `apps/browser-client/src/notes/local` | Device note database and pending edits | `listNotes`, `saveNote`, `pendingMutations`, `receiveNote`, acknowledgements | PGlite worker, SQL, and IndexedDB naming |
 | `apps/browser-client/src/notes/content` | Structure and sidebar text for note bodies | `splitFrontmatter(body)`, `notePreview(body)` | Frontmatter delimiters and preview cleanup |
-| `apps/browser-client/src/notes/sync` | Transfer of pending edits, server changes, and account resets | `syncNotes()`, `watchRemoteChanges()`, `resetAllNotes()` | Batch sizing, reset coordination, HTTP, event stream, and cursor traversal |
-| `apps/server/src/notes` | Authenticated note API and change notification | `mountNoteRoutes()` | Routes, request limits, reset generation checks, and account-scoped stream |
+| `apps/browser-client/src/notes/sync` | Transfer of pending edits, server changes, and account resets | `syncNotes()`, `watchRemoteChanges()`, `resetAllNotes()` | Batch sizing, reset coordination, HTTP, WebSocket reconnection, and cursor traversal |
+| `apps/server/src/notes` | Authenticated note API and change notification | `mountNoteRoutes()`, `mountNoteSockets()` | Routes, request limits, reset generation checks, and account-scoped sockets |
 | `apps/browser-client/src/notes/transfer` | Portable note transfers | `exportNotes()`, `importNotes(file)`, `importTextFiles(files)` | Backup validation, frontmatter parsing, and downloads |
 | `apps/browser-client/src/notes/storage` | Device storage retention | `deviceStorage()`, `requestPersistentStorage()` | Browser StorageManager calls |
 | `apps/browser-client/src/notes/state` | UI note state | `useNotes` | Refresh and connectivity triggers |
@@ -49,7 +51,7 @@ Run `npm test` for package typechecks, frontmatter parsing, and sync batch selec
 
 Consumers should use each module's public entry point and avoid descending into its implementation. Within `notes/local`, `index.ts` is the public API; `documents.ts` owns local note reads and writes, `sync-state.ts` owns pending mutations and acknowledgements, `workspace.ts` owns account selection, and `database.ts` and `worker.ts` keep the PGlite setup private. The design-system module owns the source-controlled shadcn-style controls so screens share interaction and focus behavior without duplicating it. The service worker owns static application assets; the PGlite worker owns note data. This keeps note writes available without a network request.
 
-Sync sends independent pending notes in batches of up to 25, within the request size limit, and shows batch progress in the status bar. Each mutation still carries its client mutation ID and expected server revision. The server applies a batch in one transaction, records applied IDs for safe retries, and keeps tombstones in its change feed. On revision conflict, the browser creates a local ` (conflict copy)` note containing the latest local text, then adopts the server version in one device transaction. The conflict copy syncs as a new note. An authenticated event stream tells connected browsers to pull the change feed; note contents continue to travel over REST. The stream is scoped to one server process, so the 30-second pull also covers missed signals or deployments with multiple API instances.
+Sync sends independent pending notes in batches of up to 25, within the request size limit, and shows batch progress in the status bar. Each mutation still carries its client mutation ID and expected server revision. The server applies a batch in one transaction, records applied IDs for safe retries, and keeps tombstones in its change feed. On revision conflict, the browser creates a local ` (conflict copy)` note containing the latest local text, then adopts the server version in one device transaction. PostgreSQL notifications reach every API instance; each forwards account-scoped WebSocket hints to its connected browsers. Note contents continue to travel over REST only when an edit, hint, reconnection, or explicit sync calls for it. There is no recurring 30-second pull.
 
 Search and tag filtering run in the local database. Search covers titles, bodies, and tags, with title matches ranked first; the list can be sorted by modification time or title. Appearance, list, and editor preferences are stored on the device. Files & sync settings can export and import a portable JSON backup, including tags, without contacting the server. An import creates new note IDs in one local transaction; those notes sync after a connection returns.
 
