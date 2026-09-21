@@ -9,6 +9,7 @@ import { Settings } from './Settings'
 import { AccountPanel } from './Account'
 import { SwipeableNoteRow } from './SwipeableNoteRow'
 import { CommandPalette, type CommandAction } from './CommandPalette'
+import { TagManager } from './TagManager'
 import { useAccount } from '../account'
 import { hasInvalidFrontmatter, notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
@@ -74,6 +75,7 @@ export function App() {
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const [noteMenu, setNoteMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const focusShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
   const input = useRef<HTMLInputElement>(null)
   const results = useRef<HTMLDivElement>(null)
@@ -227,8 +229,10 @@ export function App() {
   const signedIn = !!account && status !== 'auth-required'
   const connected = !!account && accountStatus === 'signed-in'
   const commands: CommandAction[] = [
-    ...(selected ? [{ id: 'pin', label: selected.pinned ? 'Unpin Note' : 'Pin Note', description: selected.title || 'Untitled',
+    ...(selected && (!mobileLayout || mobileEditor) ? [{ id: 'pin', label: selected.pinned ? 'Unpin Note' : 'Pin Note', description: selected.title || 'Untitled',
       run: () => { void setPinned(selected.id, !selected.pinned) } },
+    ...(mobileLayout ? [{ id: 'tags', label: 'Manage Tags', description: selected.tags.length ? selected.tags.map(tag => `#${tag}`).join(' ') : 'No tags',
+      run: () => setTagManagerOpen(true) }] : []),
     { id: 'delete', label: 'Delete Note', description: selected.title || 'Untitled',
       run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) setMobileEditor(false) }) } }] : []),
     { id: 'new', label: 'Create Note', run: () => { void createAndOpen('') } },
@@ -239,7 +243,7 @@ export function App() {
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
     <div className="mobile-list-heading">
       <button className="mobile-list-scroll" aria-label="Scroll notes to top"
-        onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
+        onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{initialLoad === 'loading' ? '' : notes.length}</span></button>
       <button className={`mobile-connection ${connected ? 'connected' : ''}`}
         aria-label={connected ? 'Account Connected' : 'Account Disconnected'}
         title={connected ? 'Account Connected' : 'Account Disconnected'}
@@ -297,7 +301,7 @@ export function App() {
             </>}
           </>}
         </div>
-        <div className="results" ref={results} onScroll={() => setNoteMenu(null)}>
+        <div className="results" ref={results} aria-busy={initialLoad === 'loading'} onScroll={() => setNoteMenu(null)}>
           {notes.map(note => <SwipeableNoteRow key={note.id} mobile={mobileLayout} open={openSwipeId === note.id}
             onOpenChange={open => setOpenSwipeId(open ? note.id : null)}
             deleteLabel={`Delete ${note.title || 'Untitled'}`}
@@ -324,7 +328,7 @@ export function App() {
             </button>
           </SwipeableNoteRow>)}
           {!notes.length && (initialLoad === 'loading'
-            ? <div className="empty-results loading-results" role="status"><span className="loading-spinner" aria-hidden="true" />Loading notes…</div>
+            ? null
             : initialLoad === 'unavailable'
               ? <div className="empty-results" role="alert">Could not finish loading notes. <button className="loading-retry" onClick={() => window.location.reload()}>Retry</button></div>
               : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
@@ -340,6 +344,9 @@ export function App() {
       </main>
     </div>
     {paletteOpen && <CommandPalette actions={commands} onClose={() => setPaletteOpen(false)} />}
+    {tagManagerOpen && selected && <TagManager noteTitle={selected.title} initialTags={selected.tags}
+      onClose={() => setTagManagerOpen(false)}
+      onSave={async nextTags => { await save(selected.id, selected.title, selected.body, nextTags); setTagManagerOpen(false) }} />}
     {noteMenu && <div ref={noteMenuRef} className="sidebar-note-menu" role="menu" aria-label="Note Actions"
       style={{ left: noteMenu.x, top: noteMenu.y }}>
       <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
@@ -361,8 +368,6 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
   onDelete: (id: string) => Promise<void>; onBack: () => void; onOpenCommandPalette: () => void }) {
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
-  const [tags, setTags] = useState(note.tags)
-  const [tagInput, setTagInput] = useState('')
   const editorMode = usePreferences(state => state.editorMode)
   const spellcheck = usePreferences(state => state.spellcheck)
   const [mode, setMode] = useState<'rich' | 'source'>(editorMode)
@@ -375,6 +380,9 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
   const editorInteracted = useRef(false)
   const content = useRef({ title: note.title, body: note.body, tags: note.tags })
   useEffect(() => {
+    if (note.tags.join('\0') !== content.current.tags.join('\0')) {
+      content.current = { ...content.current, tags: note.tags }
+    }
     if (note.dirty) return
     if (note.title !== content.current.title) setTitle(note.title)
     if (note.body !== content.current.body) {
@@ -382,23 +390,14 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
       setBody(note.body)
       editor.current?.setMarkdown(note.body)
     }
-    if (note.tags.join('\0') !== content.current.tags.join('\0')) setTags(note.tags)
     content.current = { title: note.title, body: note.body, tags: note.tags }
-  }, [note.revision, note.updatedAt, note.dirty])
+  }, [note.revision, note.updatedAt, note.dirty, note.tags])
   const save = (nextTitle: string, nextBody: string, nextTags = content.current.tags) => {
     content.current = { title: nextTitle, body: nextBody, tags: nextTags }
     void onSave(note.id, nextTitle, nextBody, nextTags).then(() => setSaveError(null))
       .catch(error => setSaveError(error instanceof Error ? error.message : String(error)))
   }
-  const addTag = () => {
-    const tag = tagInput.trim().replace(/^#/, '').toLowerCase()
-    if (!/^[a-z0-9][a-z0-9_-]{0,49}$/.test(tag) || tags.includes(tag) || tags.length >= 20) return
-    const next = [...tags, tag]
-    setTags(next); setTagInput(''); save(content.current.title, content.current.body, next)
-  }
   const noteTitle = () => <input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} />
-  const tagControls = () => <div className="note-tags">{tags.map(tag => <span key={tag}>{tag}<button aria-label={`Remove ${tag} tag`} onClick={() => { const next = tags.filter(item => item !== tag); setTags(next); save(content.current.title, content.current.body, next) }}>×</button></span>)}
-    <input aria-label="Add tag" placeholder="+ tag" value={tagInput} onChange={event => setTagInput(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addTag() } }} onBlur={() => { if (tagInput.trim()) addTag() }} /></div>
   const toolbarActions = {
     mode: displayMode, invalidFrontmatter, heading: <div className="editor-ribbon-heading">{noteTitle()}</div>,
     showRich: () => { setRichFailed(false); setMode('rich') },
@@ -409,7 +408,7 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
     if (!(target instanceof Element && target.closest('.editor-ribbon-heading'))) editorInteracted.current = true
   }
   return <>
-    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ Notes</button><div className="mobile-title-field">{noteTitle()}</div>{tagControls()}
+    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ Notes</button><div className="mobile-title-field">{noteTitle()}</div>
       <button className="mobile-editor-palette palette-trigger" onClick={onOpenCommandPalette} aria-label="Open Command Palette">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
       </button></div>

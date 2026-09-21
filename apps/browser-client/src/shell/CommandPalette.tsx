@@ -36,9 +36,10 @@ export function CommandPalette({ actions, onClose }: { actions: CommandAction[];
   }, [])
   const run = (action: CommandAction) => { onClose(); action.run() }
 
-  return <div className="command-overlay" style={{ top: viewport.top, height: viewport.height }}
-    onClick={event => { if (event.target === event.currentTarget) onClose() }}>
-    <div className="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette" onKeyDown={event => {
+  return <div className="command-overlay" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+    <div className="command-viewport" style={{ top: viewport.top, height: viewport.height }}
+      onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+      <div className="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
       if (event.key === 'ArrowDown') { event.preventDefault(); setActive(index => Math.min(Math.max(0, matches.length - 1), index + 1)) }
       if (event.key === 'ArrowUp') { event.preventDefault(); setActive(index => Math.max(0, index - 1)) }
@@ -53,6 +54,7 @@ export function CommandPalette({ actions, onClose }: { actions: CommandAction[];
         </button>)}
         {!matches.length && <div className="command-empty">No Matching Commands</div>}
       </div>
+    </div>
     </div>
   </div>
 }

@@ -14,7 +14,7 @@ export default defineConfig({
   }, VitePWA({
     strategies: 'injectManifest', srcDir: 'src', filename: 'sw.ts',
     injectRegister: 'auto',
-    manifest: { name: 'Astronote', short_name: 'Astronote', start_url: '/', display: 'standalone',
+    manifest: { name: 'Astronote', short_name: 'Astronote', start_url: '/', display: 'standalone', orientation: 'portrait',
       background_color: '#ffffff', theme_color: '#f2f1ee',
       icons: [
         { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
