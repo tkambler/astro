@@ -5,6 +5,8 @@ export const note = z.object({
   title: z.string().max(500),
   body: z.string(),
   tags: z.array(z.string().min(1).max(50)).max(20),
+  pinned: z.boolean(),
+  purged: z.boolean(),
   revision: z.number().int().nonnegative(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
@@ -19,6 +21,8 @@ export const noteMutation = z.object({
   title: z.string().max(500),
   body: z.string(),
   tags: z.array(z.string().min(1).max(50)).max(20),
+  pinned: z.boolean().optional(),
+  purged: z.boolean().optional(),
   createdAt: z.iso.datetime().optional(),
   updatedAt: z.iso.datetime().optional(),
   deleted: z.boolean(),
@@ -53,5 +57,9 @@ export const recoveryRequest = z.object({
   password: z.string().min(12).max(128),
 })
 export type RecoveryRequest = z.infer<typeof recoveryRequest>
-export const account = z.object({ id: z.uuid(), email: z.email() })
+export const account = z.object({ id: z.uuid(), email: z.email(), admin: z.boolean() })
 export type Account = z.infer<typeof account>
+export const systemSettings = z.object({ enableAccountRegistration: z.boolean() })
+export type SystemSettings = z.infer<typeof systemSettings>
+export const systemUser = z.object({ id: z.uuid(), email: z.email(), admin: z.boolean(), createdAt: z.iso.datetime() })
+export type SystemUser = z.infer<typeof systemUser>

@@ -10,25 +10,33 @@ export function SwipeableNoteRow({ children, deleteLabel, mobile, open, onOpenCh
 }) {
   const [dragX, setDragX] = useState<number | null>(null)
   const suppressClickUntil = useRef(0)
+  const gestureAxis = useRef<'horizontal' | 'vertical' | null>(null)
   const offset = (deltaX: number) => Math.max(-actionWidth, Math.min(0, (open ? -actionWidth : 0) + deltaX))
   const swipe = useSwipeable({
     delta: 8,
     trackTouch: mobile,
     trackMouse: false,
-    onTouchStartOrOnMouseDown: () => { suppressClickUntil.current = 0 },
+    onTouchStartOrOnMouseDown: () => { suppressClickUntil.current = 0; gestureAxis.current = null },
     onSwiping: ({ dir, deltaX, absX, absY }) => {
-      if (mobile && (dir === 'Left' || dir === 'Right') && absX > absY) setDragX(offset(deltaX))
+      if (!mobile) return
+      if (!gestureAxis.current) {
+        if (absY >= 10 && absY >= absX) gestureAxis.current = 'vertical'
+        else if (absX >= 18 && absX > absY * 1.5) gestureAxis.current = 'horizontal'
+      }
+      if (gestureAxis.current === 'horizontal' && (dir === 'Left' || dir === 'Right'))
+        setDragX(offset(deltaX))
     },
-    onSwiped: ({ deltaX, absX, absY }) => {
+    onSwiped: ({ deltaX }) => {
       setDragX(null)
-      if (!mobile || absX <= absY) return
+      if (!mobile || gestureAxis.current !== 'horizontal') return
       onOpenChange(offset(deltaX) <= -actionWidth / 2)
       suppressClickUntil.current = Date.now() + 350
     },
-    onTouchEndOrOnMouseUp: () => setDragX(null),
+    onTouchEndOrOnMouseUp: () => { setDragX(null); gestureAxis.current = null },
   })
 
-  return <div {...swipe} className="result-swipe" onTouchCancel={() => setDragX(null)} onClickCapture={event => {
+  return <div {...swipe} className={`result-swipe ${open || (dragX !== null && dragX < 0) ? 'is-revealed' : ''}`}
+    onTouchCancel={() => { setDragX(null); gestureAxis.current = null }} onClickCapture={event => {
     if (Date.now() < suppressClickUntil.current) {
       event.preventDefault()
       event.stopPropagation()

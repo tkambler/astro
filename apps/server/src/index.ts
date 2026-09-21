@@ -4,6 +4,7 @@ import { startLogging } from '@astronote/log'
 import { mountAccountRoutes } from './account/index.js'
 import { mountFrontend } from './frontend/index.js'
 import { mountNoteRoutes, mountNoteSockets } from './notes/index.js'
+import { mountSystemRoutes } from './system/index.js'
 
 startLogging()
 const app = express()
@@ -16,7 +17,9 @@ app.use('/api', (request, response, next) => {
   next()
 })
 app.use('/api/account', express.json({ limit: '16kb' }))
+app.use('/api/system', express.json({ limit: '16kb' }))
 mountAccountRoutes(app)
+mountSystemRoutes(app)
 app.get('/api/health', (_request, response) => response.json({ ok: true }))
 mountNoteRoutes(app)
 app.use('/api', (_request, response) => response.status(404).json({ error: 'Not found' }))

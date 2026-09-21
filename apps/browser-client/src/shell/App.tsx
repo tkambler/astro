@@ -8,6 +8,7 @@ import { applyPreferences, usePreferences } from '../preferences'
 import { Settings } from './Settings'
 import { AccountPanel } from './Account'
 import { SwipeableNoteRow } from './SwipeableNoteRow'
+import { CommandPalette, type CommandAction } from './CommandPalette'
 import { useAccount } from '../account'
 import { hasInvalidFrontmatter, notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
@@ -59,10 +60,11 @@ class RichEditorBoundary extends Component<{ children: ReactNode; onError: () =>
 }
 
 export function App() {
-  const { notes, tags, tagFilter, search, selectedId, status, error, progress, setSearch, setTagFilter,
-    refresh, resort, select, create, save, remove, reset, sync } = useNotes()
+  const { notes, allNotes, trash, tags, tagFilter, search, selectedId, status, error, progress, setSearch, setTagFilter,
+    refresh, resort, select, create, save, setPinned, remove, restore, emptyTrash, reset, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
+  const accountStatus = useAccount(state => state.status)
   const [settings, setSettings] = useState(false)
   const [accountPanel, setAccountPanel] = useState(false)
   const [mobileEditor, setMobileEditor] = useState(false)
@@ -71,6 +73,7 @@ export function App() {
   const [tagMenu, setTagMenu] = useState(false)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const [noteMenu, setNoteMenu] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const focusShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
   const input = useRef<HTMLInputElement>(null)
   const results = useRef<HTMLDivElement>(null)
@@ -166,32 +169,70 @@ export function App() {
   }, [noteMenu])
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'o') {
+        event.preventDefault(); setPaletteOpen(true); return
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); input.current?.focus() }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'n') {
         event.preventDefault(); setSettings(false); void createAndOpen('')
       }
       if (event.key === 'Escape') {
-        if (accountPanel) setAccountPanel(false)
+        if (paletteOpen) setPaletteOpen(false)
+        else if (accountPanel) setAccountPanel(false)
         else if (settings) setSettings(false)
         else if (document.activeElement === input.current) { void setSearch(''); input.current?.blur() }
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [setSearch, create, settings, accountPanel])
+  }, [setSearch, create, settings, accountPanel, paletteOpen])
   const moveSelection = (direction: number) => {
     if (!notes.length) return
     const index = notes.findIndex(note => note.id === selectedId)
     select(notes[Math.min(notes.length - 1, Math.max(0, index + direction))]!.id)
   }
   const openSelection = () => {
-    if (selected) { setMobileEditor(true); input.current?.blur() }
-    else if (search.trim()) void createAndOpen(search)
+    const title = search.trim()
+    if (title) {
+      const match = allNotes.find(note => note.title.trim().toLocaleLowerCase() === title.toLocaleLowerCase())
+      if (match) {
+        if (tagFilter) void setTagFilter(null)
+        select(match.id)
+        setMobileEditor(true)
+        input.current?.blur()
+      } else void createAndOpen(title)
+    } else if (selected) { setMobileEditor(true); input.current?.blur() }
   }
   const mobileDetail = mobileEditor || settings || accountPanel
   const signedIn = !!account && status !== 'auth-required'
+  const connected = !!account && accountStatus === 'signed-in'
+  const commands: CommandAction[] = [
+    ...(selected ? [{ id: 'pin', label: selected.pinned ? 'Unpin Note' : 'Pin Note', description: selected.title || 'Untitled',
+      run: () => { void setPinned(selected.id, !selected.pinned) } },
+    { id: 'delete', label: 'Delete Note', description: selected.title || 'Untitled',
+      run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) setMobileEditor(false) }) } }] : []),
+    { id: 'new', label: 'Create Note', run: () => { void createAndOpen('') } },
+    { id: 'search', label: 'Focus Search', run: () => { setSettings(false); setAccountPanel(false); input.current?.focus() } },
+    { id: 'settings', label: 'Open Settings', run: () => { setSettings(true); setAccountPanel(false) } },
+    { id: 'account', label: signedIn ? 'Open Account' : 'Sign In', run: () => { setAccountPanel(true); setSettings(false) } },
+  ]
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
-    <button className="mobile-list-heading" aria-label="Scroll notes to top" onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
+    <div className="mobile-list-heading">
+      <button className="mobile-list-scroll" aria-label="Scroll notes to top"
+        onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{notes.length}</span></button>
+      <button className={`mobile-connection ${connected ? 'connected' : ''}`}
+        aria-label={connected ? 'Account Connected' : 'Account Disconnected'}
+        title={connected ? 'Account Connected' : 'Account Disconnected'}
+        onClick={() => { setAccountPanel(true); setSettings(false) }}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 12h4M6 8v8h6V8H6M12 10h2M12 14h2" />
+          {connected ? <path d="M14 10h2m-2 4h2M16 8v8h5V8h-5M21 12h1" />
+            : <path d="M18 8v8h4V8h-4" />}
+        </svg>
+      </button>
+      <button className="mobile-header-settings" aria-label="Settings" title="Settings"
+        onClick={() => { setSettings(true); setAccountPanel(false) }}>⚙</button>
+    </div>
     <header className="omnibar">
       <span className="prompt" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m7 4 6 6-6 6" /></svg></span>
       <input ref={input} aria-label="Search or create a note" placeholder="Search or create a note…" value={search}
@@ -199,12 +240,14 @@ export function App() {
         onKeyDown={event => {
           if (event.key === 'ArrowDown') { event.preventDefault(); moveSelection(1) }
           if (event.key === 'ArrowUp') { event.preventDefault(); moveSelection(-1) }
-          if (event.key === 'Enter') { event.preventDefault(); openSelection() }
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); openSelection() }
         }} />
       <kbd className="omnibar-shortcut">{focusShortcut}</kbd>
       {search && <button className="chip" onClick={() => void setSearch('')}>ESC to clear</button>}
       {tagFilter && <button className="chip" onClick={() => void setTagFilter(null)}>#{tagFilter} ×</button>}
       {search && <button className="mobile-clear" aria-label="Clear search" onClick={() => void setSearch('')}>×</button>}
+      <button className="icon-button palette-trigger" aria-label="Open Command Palette" title={`Command Palette (${focusShortcut.startsWith('⌘') ? '⌘⇧O' : 'Ctrl Shift O'})`} aria-pressed={paletteOpen}
+        onClick={() => setPaletteOpen(value => !value)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg></button>
       <button className="icon-button" aria-label="Settings" aria-pressed={settings} onClick={() => { setSettings(value => !value); setAccountPanel(false) }}>⚙</button>
     </header>
     <div className="workspace">
@@ -219,6 +262,15 @@ export function App() {
               <button type="button" aria-pressed={preferences.sort === 'modified' && preferences.sortDirection === 'desc'} onClick={() => setSort('modified', 'desc')}>Modified · Desc</button>
             </div>
           </details>
+          {mobileLayout && <>
+            <button className="mobile-tags" aria-expanded={tagMenu} aria-label="Filter by tag"
+              onClick={() => setTagMenu(value => !value)}>{tagFilter ? `#${tagFilter}` : 'TAGS'}</button>
+            {tagMenu && <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
+              <button aria-pressed={!tagFilter} onClick={() => { void setTagFilter(null); setTagMenu(false) }}>All Tags</button>
+              {tags.map(tag => <button key={tag} aria-pressed={tagFilter === tag} onClick={() => { void setTagFilter(tag); setTagMenu(false) }}>#{tag}</button>)}
+              {!tags.length && <span>No Tags Yet</span>}
+            </div>}
+          </>}
         </div>
         <div className="results" ref={results} onScroll={() => setNoteMenu(null)}>
           {notes.map(note => <SwipeableNoteRow key={note.id} mobile={mobileLayout} open={openSwipeId === note.id}
@@ -241,7 +293,7 @@ export function App() {
               else { select(note.id); setMobileEditor(true) }
               setSettings(false)
             }}>
-            <span className="result-line"><strong>{note.title || 'Untitled'}</strong>{account && status !== 'auth-required' && note.dirty && <svg className="result-sync" role="img" aria-label="Sync pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18a5 5 0 0 1-.5-9.97A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 8.5" /><path d="M12 20V12m-3 3 3-3 3 3" /></svg>}</span>
+            <span className="result-line"><strong>{note.title || 'Untitled'}</strong>{note.pinned && <svg className="result-pin" role="img" aria-label="Pinned" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5-3 1-4 4v4l-2 2-3-5-5-3 2-2h4l4-4zM9 15l-6 6" /></svg>}{account && status !== 'auth-required' && note.dirty && <svg className="result-sync" role="img" aria-label="Sync pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18a5 5 0 0 1-.5-9.97A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 8.5" /><path d="M12 20V12m-3 3 3-3 3 3" /></svg>}</span>
             <span className="result-meta"><small>{new Date(note.updatedAt).toLocaleDateString()}</small>{preferences.showTags && !!note.tags.length && <span className="result-tags">{note.tags.map(tag => <span key={tag}>{tag}</span>)}</span>}</span>
             {preferences.showPreviews && <span className="preview">{notePreview(note.body)}</span>}
             </button>
@@ -257,11 +309,12 @@ export function App() {
       <main className={`main-pane ${!mobileEditor && !settings && !accountPanel ? 'mobile-hidden' : ''}`}>
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
-              onNotesReset={reset} />
+              onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />
           : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
+    {paletteOpen && <CommandPalette actions={commands} onClose={() => setPaletteOpen(false)} />}
     {noteMenu && <div ref={noteMenuRef} className="sidebar-note-menu" role="menu" aria-label="Note Actions"
       style={{ left: noteMenu.x, top: noteMenu.y }}>
       <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
@@ -275,17 +328,6 @@ export function App() {
       </div>
     </footer>
     {(status === 'sync-error' || status === 'storage-error') && error && <div className="mobile-sync-error" role="alert">{error}</div>}
-    {!mobileDetail && <div className="mobile-list-actions">
-      {tagMenu && <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
-        <button aria-pressed={!tagFilter} onClick={() => { void setTagFilter(null); setTagMenu(false) }}>All Tags</button>
-        {tags.map(tag => <button key={tag} aria-pressed={tagFilter === tag} onClick={() => { void setTagFilter(tag); setTagMenu(false) }}>#{tag}</button>)}
-        {!tags.length && <span>No tags yet</span>}
-      </div>}
-      <button className="mobile-tags" aria-expanded={tagMenu} aria-label="Filter by tag" onClick={() => setTagMenu(value => !value)}>{tagFilter ? `#${tagFilter}` : 'TAGS'}</button>
-      <button className="mobile-account" onClick={() => { setAccountPanel(true); setSettings(false) }} aria-label="Account">◉</button>
-      <button className="mobile-settings" onClick={() => setSettings(true)} aria-label="Settings">⚙</button>
-      <button className="mobile-new" onClick={() => void createAndOpen('')}>NEW ›</button>
-    </div>}
   </div>
 }
 

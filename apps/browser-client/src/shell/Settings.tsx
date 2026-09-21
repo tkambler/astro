@@ -5,12 +5,16 @@ import { deviceStorage, requestPersistentStorage, type DeviceStorage } from '../
 import { Button, Switch } from '../design-system'
 import { useAccount } from '../account'
 import { activeAccountId } from '../notes/local'
+import type { LocalNote } from '../notes/local'
+import { systemSettings as systemSettingsSchema, systemUser as systemUserSchema,
+  type SystemSettings, type SystemUser } from '@astronote/schemas'
 
-type Section = 'Appearance' | 'Editor' | 'Files & Sync' | 'Shortcuts' | 'About'
-const sections: Section[] = ['Appearance', 'Editor', 'Files & Sync', 'Shortcuts', 'About']
+type Section = 'Appearance' | 'Editor' | 'Files & Sync' | 'Trash' | 'System' | 'Shortcuts' | 'About'
+const sections: Section[] = ['Appearance', 'Editor', 'Files & Sync', 'Trash', 'System', 'Shortcuts', 'About']
 
-export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset }: {
-  mobileLayout: boolean; onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void> }) {
+export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset, trash, onRestore, onEmptyTrash }: {
+  mobileLayout: boolean; onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void>;
+  trash: LocalNote[]; onRestore(id: string): Promise<boolean>; onEmptyTrash(): Promise<number> }) {
   const [section, setSection] = useState<Section | null>(mobileLayout ? null : 'Appearance')
   const [message, setMessage] = useState('')
   const [importProgress, setImportProgress] = useState<{ label: string; completed: number; total: number } | null>(null)
@@ -20,6 +24,12 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
   const resetDialog = useRef<HTMLDialogElement>(null)
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState('')
+  const [trashBusy, setTrashBusy] = useState(false)
+  const [trashMessage, setTrashMessage] = useState('')
+  const [system, setSystem] = useState<SystemSettings | null>(null)
+  const [systemUsers, setSystemUsers] = useState<SystemUser[] | null>(null)
+  const [systemBusy, setSystemBusy] = useState(false)
+  const [systemError, setSystemError] = useState('')
   const account = useAccount(state => state.account)
   const accountStatus = useAccount(state => state.status)
   const hasAccountNotes = activeAccountId() !== null
@@ -27,6 +37,31 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
   const { update } = preferences
   useEffect(() => { setSection(mobileLayout ? null : 'Appearance') }, [mobileLayout])
   useEffect(() => { void deviceStorage().then(setStorage) }, [])
+  useEffect(() => {
+    if (!account?.admin || accountStatus !== 'signed-in') { setSystem(null); setSystemUsers(null); return }
+    let active = true
+    void Promise.all([
+      fetch('/api/system/settings', { cache: 'no-store' }),
+      fetch('/api/system/users', { cache: 'no-store' }),
+    ]).then(async ([settingsResponse, usersResponse]) => {
+      if (!settingsResponse.ok || !usersResponse.ok) throw new Error('Could not load system information')
+      const settings = systemSettingsSchema.parse(await settingsResponse.json())
+      const users = systemUserSchema.array().parse((await usersResponse.json() as { users: unknown }).users)
+      if (active) { setSystem(settings); setSystemUsers(users); setSystemError('') }
+    }).catch(error => { if (active) setSystemError(String(error)) })
+    return () => { active = false }
+  }, [account?.id, account?.admin, accountStatus])
+  const changeRegistration = async (enabled: boolean) => {
+    setSystemBusy(true); setSystemError('')
+    try {
+      const response = await fetch('/api/system/settings', { method: 'PUT',
+        headers: { 'content-type': 'application/json', 'x-astronote-request': '1' },
+        body: JSON.stringify({ enableAccountRegistration: enabled }) })
+      if (!response.ok) throw new Error(response.status === 403 ? 'Administrator access required' : 'Could not update system settings')
+      setSystem(systemSettingsSchema.parse(await response.json()))
+    } catch (error) { setSystemError(String(error)) }
+    finally { setSystemBusy(false) }
+  }
   const handleImport = async (file: File | undefined) => {
     if (!file) return
     setMessage('')
@@ -68,7 +103,7 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
   return <div className="settings-view">
     <div className="settings-top"><button className="mobile-settings-back" onClick={() => { if (mobileLayout && section) setSection(null); else onClose() }}>{mobileLayout && section ? '‹ Settings' : '‹ Notes'}</button><span>{mobileLayout && section ? section.toUpperCase() : 'SETTINGS'}</span><span>changes save as you make them</span><button onClick={onClose}>ESC to close</button></div>
     <div className="settings-layout">
-      <nav className={`settings-nav ${section === null ? 'mobile-section-list' : ''}`} aria-label="Settings sections">{sections.map(item =>
+      <nav className={`settings-nav ${section === null ? 'mobile-section-list' : ''}`} aria-label="Settings sections">{sections.filter(item => item !== 'System' || (account?.admin && accountStatus === 'signed-in')).map(item =>
         <button key={item} className={section === item ? 'active' : ''} aria-current={section === item ? 'page' : undefined}
           onClick={event => setSection(event.metaKey && section === item ? null : item)}>{item}</button>)}</nav>
       <div className={`settings-content ${section !== null ? 'mobile-section-active' : ''}`}>
@@ -128,7 +163,39 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset 
                 {resetting ? 'Deleting…' : 'Delete All Notes'}</Button></div>
           </dialog>
         </section>
-        <section className={`settings-section ${section === 'Shortcuts' ? 'active' : ''}`}><h2>SHORTCUTS</h2><dl className="shortcuts"><dt>Search or Create</dt><dd>⌘K / Ctrl K</dd><dt>New Note</dt><dd>⌘N / Ctrl N</dd><dt>Move Through Results</dt><dd>↑ / ↓</dd><dt>Open Result</dt><dd>Enter</dd><dt>Close Settings or Clear Search</dt><dd>Escape</dd></dl></section>
+        <section className={`settings-section ${section === 'Trash' ? 'active' : ''}`}>
+          <h2>TRASH</h2><p>Deleted notes stay here until you restore them or empty the trash.</p>
+          {trash.length ? <>
+            <div className="trash-list">{trash.map(note => <div className="trash-row" key={note.id}>
+              <span><strong>{note.title || 'Untitled'}</strong><small>Deleted {new Date(note.deletedAt!).toLocaleDateString()}</small></span>
+              <Button disabled={trashBusy} onClick={() => { void onRestore(note.id).then(restored => {
+                setTrashMessage(restored ? 'Note restored.' : 'Could not restore note.')
+              }).catch(error => setTrashMessage(String(error))) }}>Restore</Button>
+            </div>)}</div>
+            <Button className="danger-action" disabled={trashBusy} onClick={() => {
+              if (!confirm(`Permanently delete ${trash.length} ${trash.length === 1 ? 'note' : 'notes'} from Trash?`)) return
+              setTrashBusy(true); setTrashMessage('')
+              void onEmptyTrash().then(count => setTrashMessage(`Permanently deleted ${count} ${count === 1 ? 'note' : 'notes'}.`))
+                .catch(error => setTrashMessage(String(error))).finally(() => setTrashBusy(false))
+            }}>Empty Trash</Button>
+          </> : <p>Trash is empty.</p>}
+          {trashMessage && <p className="settings-feedback" role="status">{trashMessage}</p>}
+        </section>
+        {account?.admin && accountStatus === 'signed-in' && <section className={`settings-section ${section === 'System' ? 'active' : ''}`}>
+          <h2>SYSTEM</h2><p>These settings apply to everyone using this Astronote server.</p>
+          <label className="settings-check"><Switch aria-label="Enable Account Registration"
+            checked={system?.enableAccountRegistration ?? false} disabled={!system || systemBusy}
+            onCheckedChange={checked => { void changeRegistration(checked) }} />
+            <span><strong>Enable Account Registration</strong><small>Allow new users to create accounts.</small></span></label>
+          <hr /><h2>USERS{systemUsers && ` · ${systemUsers.length}`}</h2>
+          {systemUsers ? <div className="system-users">{systemUsers.map(user => <div className="system-user" key={user.id}>
+            <span className="system-user-email">{user.email}</span>
+            <span className="system-user-role">{user.admin ? 'Admin' : 'User'}</span>
+            <small>Joined {new Date(user.createdAt).toLocaleDateString()}</small>
+          </div>)}</div> : !systemError && <p>Loading Users…</p>}
+          {systemError && <p className="settings-feedback" role="alert">{systemError}</p>}
+        </section>}
+        <section className={`settings-section ${section === 'Shortcuts' ? 'active' : ''}`}><h2>SHORTCUTS</h2><dl className="shortcuts"><dt>Search or Create</dt><dd>⌘K / Ctrl K</dd><dt>Command Palette</dt><dd>⌘⇧O / Ctrl Shift O</dd><dt>New Note</dt><dd>⌘N / Ctrl N</dd><dt>Move Through Results</dt><dd>↑ / ↓</dd><dt>Open or Create Note</dt><dd>Enter</dd><dt>Close Settings or Clear Search</dt><dd>Escape</dd></dl></section>
         <section className={`settings-section ${section === 'About' ? 'active' : ''}`}><h2>ABOUT ASTRONOTE</h2><p>An offline-first place for quickly creating, finding, and editing notes.</p></section>
       </div>
     </div>

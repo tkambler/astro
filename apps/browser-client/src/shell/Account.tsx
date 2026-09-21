@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAccount } from '../account'
 import { Button, Input } from '../design-system'
 import { activeAccountId } from '../notes/local'
@@ -13,6 +13,17 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [registrationEnabled, setRegistrationEnabled] = useState<boolean | null>(null)
+  useEffect(() => {
+    let active = true
+    void fetch('/api/account/registration', { cache: 'no-store' }).then(async response => {
+      if (!response.ok) return
+      const data = await response.json() as { enableAccountRegistration?: unknown }
+      if (active && typeof data.enableAccountRegistration === 'boolean')
+        setRegistrationEnabled(data.enableAccountRegistration)
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [])
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true); setError('')
@@ -65,7 +76,7 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
           <label>{mode === 'recover' ? 'New Password' : 'Password'} <Input type="password" minLength={12} maxLength={128} autoComplete={mode === 'sign-in' ? 'current-password' : 'new-password'} required value={password} onChange={event => setPassword(event.target.value)} /></label>
           <Button variant="primary" className="account-action" disabled={busy} type="submit">{busy ? 'Working…' : mode === 'register' ? 'Create Account' : mode === 'recover' ? 'Reset Password' : 'Sign In'}</Button>
         </form>
-        {mode === 'sign-in' ? <><Button variant="ghost" className="account-switch" onClick={() => { setMode('register'); setError('') }}>New Here? Create an Account</Button>
+        {mode === 'sign-in' ? <>{registrationEnabled !== false && <Button variant="ghost" className="account-switch" onClick={() => { setMode('register'); setError('') }}>New Here? Create an Account</Button>}
           <Button variant="ghost" className="account-switch" onClick={() => { setMode('recover'); setError('') }}>Use a Recovery Code</Button></>
           : <Button variant="ghost" className="account-switch" onClick={() => { setMode('sign-in'); setError('') }}>Back to Sign In</Button>}
       </>}

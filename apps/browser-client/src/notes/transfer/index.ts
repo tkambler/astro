@@ -7,7 +7,7 @@ const backup = z.object({
   version: z.literal(1),
   exportedAt: z.iso.datetime(),
   notes: z.array(z.object({ title: z.string().max(500), body: z.string(),
-    tags: z.array(z.string().min(1).max(50)).max(20).optional(),
+    tags: z.array(z.string().min(1).max(50)).max(20).optional(), pinned: z.boolean().optional(),
     createdAt: z.iso.datetime().optional(), updatedAt: z.iso.datetime().optional() })),
 })
 
@@ -15,8 +15,8 @@ const backup = z.object({
 export async function exportNotes() {
   const notes = await listNotes()
   const data = backup.parse({ format: 'astronote-backup', version: 1,
-    exportedAt: new Date().toISOString(), notes: notes.map(({ title, body, tags, createdAt, updatedAt }) =>
-      ({ title, body, tags, createdAt, updatedAt })) })
+    exportedAt: new Date().toISOString(), notes: notes.map(({ title, body, tags, pinned, createdAt, updatedAt }) =>
+      ({ title, body, tags, pinned, createdAt, updatedAt })) })
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
   const link = document.createElement('a')
   link.href = url

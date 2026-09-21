@@ -1,4 +1,5 @@
 import { accountKey, announceChange, db, owner, ready } from './database'
+import { newIdentifier } from './identifiers'
 
 /** Moves guest notes into a newly connected account as fresh pending mutations. */
 export async function activateAccount(accountId: string) {
@@ -9,7 +10,7 @@ export async function activateAccount(accountId: string) {
     for (const guest of guests.rows) {
       await tx.query(`UPDATE notes SET id=$1,owner_id=$2,revision=0,base_revision=0,synced_body='',synced_title='',
         dirty=true,mutation_id=$3 WHERE id=$4 AND owner_id='guest'`,
-      [crypto.randomUUID(), accountId, crypto.randomUUID(), guest.id])
+      [newIdentifier(), accountId, newIdentifier(), guest.id])
     }
   })
   localStorage.setItem(accountKey, accountId)

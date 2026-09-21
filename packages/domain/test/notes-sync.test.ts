@@ -3,10 +3,38 @@ import assert from 'node:assert/strict'
 import { database } from '@astronote/db'
 import { accountForSession, authenticateAccount, createSession, endSession,
   authenticationAttemptAllowed, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
-  recoverAccount, registerAccount, resetNotes, rotateRecoveryCode } from '../src/index.js'
+  recoverAccount, registerAccount, resetNotes, rotateRecoveryCode, getSystemSettings,
+  setAccountRegistration, listSystemUsers, RegistrationDisabledError, SystemAccessDeniedError } from '../src/index.js'
 import { recoveryRequest } from '@astronote/schemas'
 
 after(async () => { await database().destroy() })
+
+test('the first account is admin and controls registration', async () => {
+  const registrations = await Promise.all(Array.from({ length: 2 }, () => registerAccount({
+    email: `bootstrap-${crypto.randomUUID()}@example.test`, password: 'test-password-long-enough',
+  })))
+  assert.equal(registrations.filter(item => item.admin).length, 1)
+  const admin = registrations.find(item => item.admin)!
+  const member = registrations.find(item => !item.admin)!
+  assert.equal((await authenticateAccount({ email: admin.email, password: 'test-password-long-enough' }))?.admin, true)
+  const session = await createSession(admin.id)
+  assert.equal((await accountForSession(session))?.admin, true)
+  await assert.rejects(listSystemUsers(member.id), SystemAccessDeniedError)
+  const users = await listSystemUsers(admin.id)
+  assert.deepEqual(users.map(user => user.id).sort(), registrations.map(user => user.id).sort())
+  assert.equal(users.find(user => user.id === admin.id)?.admin, true)
+  assert.ok(users.every(user => !('password_hash' in user) && !('recovery_code_hash' in user)))
+  assert.ok(users.every(user => Number.isFinite(Date.parse(user.createdAt))))
+  assert.deepEqual(await getSystemSettings(), { enableAccountRegistration: true })
+  await assert.rejects(setAccountRegistration(member.id, false), SystemAccessDeniedError)
+  await setAccountRegistration(admin.id, false)
+  assert.deepEqual(await getSystemSettings(), { enableAccountRegistration: false })
+  await assert.rejects(registerAccount({ email: `blocked-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' }), RegistrationDisabledError)
+  await setAccountRegistration(admin.id, true)
+  assert.equal((await registerAccount({ email: `allowed-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })).admin, false)
+})
 
 test('notes sync is revisioned, idempotent, tagged, and account scoped', async () => {
   const suffix = crypto.randomUUID()
@@ -27,6 +55,7 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
   if (created?.status !== 'applied') return
   assert.equal(created.note.revision, 1)
   assert.deepEqual(created.note.tags, ['work'])
+  assert.equal(created.note.pinned, false)
   assert.equal(created.note.createdAt, initial.createdAt)
   assert.equal(created.note.updatedAt, initial.updatedAt)
 
@@ -37,17 +66,24 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
   assert.equal(stale?.status, 'conflict')
 
   const updated = (await pushNotes(first.id, [{ ...initial, mutationId: crypto.randomUUID(),
-    baseRevision: 1, body: 'Second body', tags: ['work', 'ideas'] }])).results[0]
+    baseRevision: 1, body: 'Second body', tags: ['work', 'ideas'], pinned: true }])).results[0]
   assert.equal(updated?.status, 'applied')
+  if (updated?.status === 'applied') assert.equal(updated.note.pinned, true)
   if (updated?.status === 'applied') assert.equal(updated.note.createdAt, initial.createdAt)
   const lateRetry = (await pushNotes(first.id, [initial])).results[0]
   assert.equal(lateRetry?.status, 'conflict')
   const page = await pullNotes(first.id, 0)
   assert.equal(page.changes.length, 2)
   assert.deepEqual(page.changes[0]?.tags, ['work', 'ideas'])
+  assert.equal(page.changes[0]?.pinned, true)
+
+  const legacyUpdate = (await pushNotes(first.id, [{ ...initial, mutationId: crypto.randomUUID(),
+    baseRevision: 2, body: 'Older client edit' }])).results[0]
+  assert.equal(legacyUpdate?.status, 'applied')
+  if (legacyUpdate?.status === 'applied') assert.equal(legacyUpdate.note.pinned, true)
 
   const deleted = (await pushNotes(first.id, [{ ...initial, mutationId: crypto.randomUUID(),
-    baseRevision: 2, deleted: true }])).results[0]
+    baseRevision: 3, deleted: true }])).results[0]
   assert.equal(deleted?.status, 'applied')
   const tombstone = await pullNotes(first.id, page.cursor)
   assert.equal(tombstone.changes[0]?.id, noteId)
@@ -70,6 +106,38 @@ test('a batch applies independent notes atomically and preserves mutation order'
   assert.deepEqual(page.changes.map(note => note.id), mutations.map(item => item.id))
   assert.ok((await pushNotes(registered.id, mutations)).results.every(item => item.status === 'applied'))
   assert.equal((await pullNotes(registered.id, 0)).changes.length, mutations.length)
+})
+
+test('deleted notes can be restored and purged without allowing stale content to return', async () => {
+  const user = await registerAccount({ email: `trash-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const initial = { mutationId: crypto.randomUUID(), id: crypto.randomUUID(), baseRevision: 0,
+    title: 'To delete', body: 'Private content', tags: ['private'], deleted: false }
+  const apply = async (baseRevision: number, changes: Partial<typeof initial> & { purged?: boolean }) => {
+    const result = (await pushNotes(user.id, [{ ...initial, ...changes,
+      mutationId: crypto.randomUUID(), baseRevision }])).results[0]
+    assert.equal(result?.status, 'applied')
+    if (result?.status !== 'applied') throw new Error('Expected applied mutation')
+    return result.note
+  }
+  await apply(0, {})
+  const deleted = await apply(1, { deleted: true })
+  assert.ok(deleted.deletedAt)
+  const restored = await apply(2, { deleted: false })
+  assert.equal(restored.deletedAt, null)
+  const deletedAgain = await apply(3, { deleted: true })
+  assert.ok(deletedAgain.deletedAt)
+  const purged = await apply(4, { deleted: true, purged: true })
+  assert.equal(purged.purged, true)
+  assert.equal(purged.title, '')
+  assert.equal(purged.body, '')
+  assert.deepEqual(purged.tags, [])
+  const pulled = (await pullNotes(user.id, 0)).changes.at(-1)
+  assert.equal(pulled?.purged, true)
+  assert.equal(pulled?.body, '')
+  const resurrection = (await pushNotes(user.id, [{ ...initial, mutationId: crypto.randomUUID(),
+    baseRevision: 5 }])).results[0]
+  assert.equal(resurrection?.status, 'conflict')
 })
 
 test('reset removes only one account and rejects stale device uploads', async () => {

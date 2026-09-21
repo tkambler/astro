@@ -9,6 +9,7 @@ const authenticationWindowMs = 15 * 60 * 1000
 let nextLimitPrune = 0
 
 export class AccountAlreadyExistsError extends Error {}
+export class RegistrationDisabledError extends Error {}
 
 /** Counts account attempts atomically in PostgreSQL so every API instance shares the limit. */
 export async function authenticationAttemptAllowed(source: string) {
@@ -51,27 +52,35 @@ async function checkPassword(password: string, stored: string) {
 }
 
 export async function registerAccount(credentials: Credentials): Promise<Account & { recoveryCode: string }> {
-  const account = { id: crypto.randomUUID(), email: credentials.email }
+  const id = crypto.randomUUID()
   const password_hash = await hashPassword(credentials.password)
   const code = recoveryCode()
   try {
-    await database()('users').insert({ ...account, password_hash, recovery_code_hash: recoveryHash(code),
-      created_at: new Date() })
+    return await database().transaction(async tx => {
+      // Serialize the first-user decision with registration setting changes.
+      await tx.raw('SELECT pg_advisory_xact_lock(918273646)')
+      const setting = await tx('system_settings').where({ key: 'enable_account_registration' }).first<{ value: boolean }>()
+      if (!setting?.value) throw new RegistrationDisabledError()
+      const existing = await tx('users').first('id')
+      const admin = !existing
+      await tx('users').insert({ id, email: credentials.email, admin, password_hash,
+        recovery_code_hash: recoveryHash(code), created_at: new Date() })
+      return { id, email: credentials.email, admin, recoveryCode: code }
+    })
   } catch (error) {
     if (typeof error === 'object' && error !== null && 'code' in error && error.code === '23505') throw new AccountAlreadyExistsError()
     throw error
   }
-  return { ...account, recoveryCode: code }
 }
 
 export async function authenticateAccount(credentials: Credentials): Promise<Account | null> {
-  const row = await database()('users').where({ email: credentials.email }).first<{ id: string; email: string; password_hash: string }>()
+  const row = await database()('users').where({ email: credentials.email }).first<{ id: string; email: string; admin: boolean; password_hash: string }>()
   if (!row) {
     // Do equivalent password work for unknown accounts.
     await hashPassword(credentials.password)
     return null
   }
-  return await checkPassword(credentials.password, row.password_hash) ? { id: row.id, email: row.email } : null
+  return await checkPassword(credentials.password, row.password_hash) ? { id: row.id, email: row.email, admin: row.admin } : null
 }
 
 function tokenHash(token: string) { return createHash('sha256').update(token).digest('hex') }
@@ -92,14 +101,14 @@ export async function recoverAccount(request: RecoveryRequest): Promise<(Account
   const nextCode = recoveryCode()
   return await database().transaction(async tx => {
     const row = await tx('users').where({ email: request.email }).forUpdate()
-      .first<{ id: string; email: string; recovery_code_hash: string | null }>()
+      .first<{ id: string; email: string; admin: boolean; recovery_code_hash: string | null }>()
     if (!row?.recovery_code_hash) return null
     const expected = Buffer.from(row.recovery_code_hash, 'hex')
     const actual = Buffer.from(recoveryHash(request.recoveryCode), 'hex')
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null
     await tx('users').where({ id: row.id }).update({ password_hash, recovery_code_hash: recoveryHash(nextCode) })
     await tx('sessions').where({ user_id: row.id }).delete()
-    return { id: row.id, email: row.email, recoveryCode: nextCode }
+    return { id: row.id, email: row.email, admin: row.admin, recoveryCode: nextCode }
   })
 }
 export async function createSession(userId: string) {
@@ -114,7 +123,7 @@ export async function accountForSession(token: string): Promise<Account | null> 
     .join('users as users', 'users.id', 'sessions.user_id')
     .where('sessions.token_hash', tokenHash(token))
     .andWhere('sessions.expires_at', '>', new Date())
-    .select('users.id', 'users.email').first<Account>()
+    .select('users.id', 'users.email', 'users.admin').first<Account>()
   return row ?? null
 }
 export async function endSession(token: string) {

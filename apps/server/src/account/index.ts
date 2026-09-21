@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from 'express'
 import { accountForSession, authenticateAccount, createSession, endSession,
   registerAccount, authenticationAttemptAllowed, rotateRecoveryCode, recoverAccount,
-  AccountAlreadyExistsError } from '@astronote/domain'
+  AccountAlreadyExistsError, RegistrationDisabledError, getSystemSettings } from '@astronote/domain'
 import { account, credentials, recoveryRequest } from '@astronote/schemas'
 
 const secure = process.env.NODE_ENV === 'production'
@@ -35,6 +35,10 @@ export async function requireAccount(request: Request, response: Response) {
 
 export function mountAccountRoutes(app: Express) {
   app.use('/api/account', (_request, response, next) => { response.set('Cache-Control', 'no-store'); next() })
+  app.get('/api/account/registration', async (_request, response) => {
+    try { return response.json(await getSystemSettings()) }
+    catch { return response.status(500).json({ error: 'Could not check account registration' }) }
+  })
   app.get('/api/account', async (request, response) => {
     try {
       const current = await currentAccount(request)
@@ -52,6 +56,7 @@ export function mountAccountRoutes(app: Express) {
       return response.status(201).json({ account: created, recoveryCode: result.recoveryCode })
     } catch (error) {
       if (error instanceof AccountAlreadyExistsError) return response.status(409).json({ error: 'Account already exists' })
+      if (error instanceof RegistrationDisabledError) return response.status(403).json({ error: 'Account registration is disabled' })
       return response.status(500).json({ error: 'Could not create account' })
     }
   })
