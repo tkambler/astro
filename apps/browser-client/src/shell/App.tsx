@@ -336,7 +336,7 @@ export function App() {
             </>}
           </>}
         </div>
-        <div className="results" ref={results} aria-busy={initialLoad === 'loading'} onScroll={() => setNoteMenu(null)}>
+        <div className="results" ref={results} aria-busy={initialLoad === 'loading' || (status === 'syncing' && !notes.length)} onScroll={() => setNoteMenu(null)}>
           {notes.map(note => <SwipeableNoteRow key={note.id} mobile={mobileLayout} open={openSwipeId === note.id}
             onOpenChange={open => setOpenSwipeId(open ? note.id : null)}
             deleteLabel={`Delete ${note.title || 'Untitled'}`}
@@ -366,15 +366,17 @@ export function App() {
             ? null
             : initialLoad === 'unavailable'
               ? <div className="empty-results" role="alert">Could not finish loading notes. <button className="loading-retry" onClick={() => window.location.reload()}>Retry</button></div>
-              : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
+              : status === 'syncing'
+                ? <div className="empty-results" role="status">Syncing notes…</div>
+                : <div className="empty-results">{search || tagFilter ? 'No matches yet.' : 'No notes yet. Type a title above to create one.'}</div>)}
         </div>
         <button className="create-row" onClick={() => void createAndOpen(search)}>＋ Create Note {search && `“${search}”`}</button>
       </aside>
       <main className={`main-pane ${!mobileEditor && !settings && !accountPanel ? 'mobile-hidden' : ''}`}>
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => {
-          await useNotes.getState().sync()
           await useNotes.getState().refresh()
-          if (useAccount.getState().status === 'signed-in') await syncAccountPreferences()
+          if (useAccount.getState().status === 'signed-in') void syncAccountPreferences()
+          void useNotes.getState().sync()
         }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />

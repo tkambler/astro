@@ -32,10 +32,14 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
     try {
       const code = mode === 'recover' ? await recover(email, recoveryInput, password)
         : await signIn(email, password, mode === 'register')
-      await onAccountChanged()
       setPassword(''); setRecoveryInput('')
-      if (code) setNewRecoveryCode(code)
-      else onClose()
+      if (code) {
+        await onAccountChanged()
+        setNewRecoveryCode(code)
+      } else {
+        onClose()
+        void onAccountChanged()
+      }
     } catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
   }

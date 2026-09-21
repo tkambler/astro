@@ -47,10 +47,11 @@ export async function resetAllNotes() {
   } finally { resetInProgress = false }
 }
 
-export function syncNotes(onProgress?: (progress: SyncProgress) => Promise<void>): Promise<{ pushed: number; pulled: number }> {
+export function syncNotes(onProgress?: (progress: SyncProgress) => Promise<void>,
+  onNotesReceived?: () => Promise<void>): Promise<{ pushed: number; pulled: number }> {
   const accountId = activeAccountId()
   if (!accountId || resetInProgress) return Promise.resolve({ pushed: 0, pulled: 0 })
-  if (inFlight && inFlightAccount !== accountId) return inFlight.then(() => syncNotes(onProgress))
+  if (inFlight && inFlightAccount !== accountId) return inFlight.then(() => syncNotes(onProgress, onNotesReceived))
   if (!inFlight) {
     inFlightAccount = accountId
     const version = resetVersion
@@ -60,7 +61,7 @@ export function syncNotes(onProgress?: (progress: SyncProgress) => Promise<void>
       const totals = { pushed: 0, pulled: 0 }
       do {
         requestedAgain = false
-        const result = await performSync(accountId, onProgress, controller.signal, version)
+        const result = await performSync(accountId, onProgress, onNotesReceived, controller.signal, version)
         totals.pushed += result.pushed
         totals.pulled += result.pulled
       } while (requestedAgain && activeAccountId() === accountId && resetVersion === version)
@@ -71,7 +72,7 @@ export function syncNotes(onProgress?: (progress: SyncProgress) => Promise<void>
 }
 
 async function performSync(accountId: string, onProgress: ((progress: SyncProgress) => Promise<void>) | undefined,
-  signal: AbortSignal, version: number) {
+  onNotesReceived: (() => Promise<void>) | undefined, signal: AbortSignal, version: number) {
   const stillActive = () => activeAccountId() === accountId && resetVersion === version && !signal.aborted
   const reconcileGeneration = async () => {
     const state = await fetch('/api/notes/state', { cache: 'no-store', signal })
@@ -136,6 +137,7 @@ async function performSync(accountId: string, onProgress: ((progress: SyncProgre
     pulled += page.changes.length
     if (!stillActive()) return { pushed, pulled }
     await setCursor(page.cursor, accountId)
+    await onNotesReceived?.()
     hasMore = page.hasMore
   }
   return { pushed, pulled }

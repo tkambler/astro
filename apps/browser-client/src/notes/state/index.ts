@@ -144,7 +144,7 @@ export const useNotes = create<State>((set, get) => ({
     if (!navigator.onLine) { set({ status: 'offline' }); return }
     set({ status: 'syncing', error: null, progress: null })
     try {
-      await syncNotes(async progress => { set({ progress }); await get().refresh() })
+      await syncNotes(async progress => { set({ progress }); await get().refresh() }, async () => get().refresh())
       await get().refresh()
       set({ status: 'synced', progress: null })
     }
