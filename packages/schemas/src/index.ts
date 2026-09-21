@@ -45,6 +45,21 @@ export const pullResult = z.object({
 })
 export type PullResult = z.infer<typeof pullResult>
 
+export const shareId = z.string().regex(/^[A-Za-z0-9_-]{22}$/)
+export const noteShare = z.object({
+  id: shareId,
+  noteId: z.uuid(),
+  title: z.string().max(500),
+  createdAt: z.iso.datetime(),
+})
+export type NoteShare = z.infer<typeof noteShare>
+export const publicNote = z.object({
+  title: z.string().max(500),
+  body: z.string(),
+  updatedAt: z.iso.datetime(),
+})
+export type PublicNote = z.infer<typeof publicNote>
+
 export const credentials = z.object({
   email: z.email().max(254).transform(value => value.trim().toLowerCase()),
   password: z.string().min(12).max(128),

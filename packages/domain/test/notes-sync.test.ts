@@ -6,6 +6,7 @@ import { accountForSession, authenticateAccount, createSession, endSession,
   recoverAccount, registerAccount, resetNotes, rotateRecoveryCode, getSystemSettings,
   setAccountRegistration, listSystemUsers, RegistrationDisabledError, SystemAccessDeniedError,
   getAccountPreferences, setAccountPreferences } from '../src/index.js'
+import { createNoteShare, deleteNoteShare, getPublicNote, listNoteShares } from '../src/index.js'
 import { recoveryRequest } from '@astronote/schemas'
 
 after(async () => { await database().destroy() })
@@ -106,6 +107,30 @@ test('account preferences persist independently for each account', async () => {
   await setAccountPreferences(first.id, preferences)
   assert.deepEqual(await getAccountPreferences(first.id), preferences)
   assert.equal(await getAccountPreferences(second.id), null)
+})
+
+test('note shares are account scoped, public, current, and revocable', async () => {
+  const owner = await registerAccount({ email: `shares-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const stranger = await registerAccount({ email: `shares-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const noteId = crypto.randomUUID()
+  const initial = { mutationId: crypto.randomUUID(), id: noteId, baseRevision: 0,
+    title: 'Public title', body: 'First public body', tags: [], deleted: false }
+  await pushNotes(owner.id, [initial])
+  assert.equal(await createNoteShare(stranger.id, noteId), null)
+  const shared = await createNoteShare(owner.id, noteId)
+  assert.ok(shared)
+  assert.match(shared.id, /^[A-Za-z0-9_-]{22}$/)
+  assert.deepEqual((await listNoteShares(owner.id)).map(item => item.id), [shared.id])
+  assert.deepEqual(await listNoteShares(stranger.id), [])
+  assert.equal((await getPublicNote(shared.id))?.body, initial.body)
+  await pushNotes(owner.id, [{ ...initial, mutationId: crypto.randomUUID(), baseRevision: 1, body: 'Updated public body' }])
+  assert.equal((await getPublicNote(shared.id))?.body, 'Updated public body')
+  assert.equal(await deleteNoteShare(stranger.id, shared.id), false)
+  assert.ok(await getPublicNote(shared.id))
+  assert.equal(await deleteNoteShare(owner.id, shared.id), true)
+  assert.equal(await getPublicNote(shared.id), null)
 })
 
 test('a batch applies independent notes atomically and preserves mutation order', async () => {

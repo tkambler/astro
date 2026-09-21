@@ -7,10 +7,11 @@ import { useAccount } from '../account'
 import { activeAccountId } from '../notes/local'
 import type { LocalNote } from '../notes/local'
 import { systemSettings as systemSettingsSchema, systemUser as systemUserSchema,
-  type SystemSettings, type SystemUser } from '@astronote/schemas'
+  type NoteShare, type SystemSettings, type SystemUser } from '@astronote/schemas'
+import { listShares, revokeShare, shareUrl } from '../shares'
 
-type Section = 'Appearance' | 'Editor' | 'Files & Sync' | 'Trash' | 'System' | 'Shortcuts' | 'About'
-const sections: Section[] = ['Appearance', 'Editor', 'Files & Sync', 'Trash', 'System', 'Shortcuts', 'About']
+type Section = 'Appearance' | 'Editor' | 'Files & Sync' | 'Shared Notes' | 'Trash' | 'System' | 'Shortcuts' | 'About'
+const sections: Section[] = ['Appearance', 'Editor', 'Files & Sync', 'Shared Notes', 'Trash', 'System', 'Shortcuts', 'About']
 
 export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset, trash, onRestore, onEmptyTrash }: {
   mobileLayout: boolean; onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void>;
@@ -30,6 +31,9 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
   const [systemUsers, setSystemUsers] = useState<SystemUser[] | null>(null)
   const [systemBusy, setSystemBusy] = useState(false)
   const [systemError, setSystemError] = useState('')
+  const [shares, setShares] = useState<NoteShare[] | null>(null)
+  const [sharesBusy, setSharesBusy] = useState('')
+  const [sharesError, setSharesError] = useState('')
   const account = useAccount(state => state.account)
   const accountStatus = useAccount(state => state.status)
   const hasAccountNotes = activeAccountId() !== null
@@ -37,6 +41,14 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
   const { update } = preferences
   useEffect(() => { setSection(mobileLayout ? null : 'Appearance') }, [mobileLayout])
   useEffect(() => { void deviceStorage().then(setStorage) }, [])
+  useEffect(() => {
+    if (section !== 'Shared Notes' || accountStatus !== 'signed-in') return
+    let active = true
+    setSharesError('')
+    void listShares().then(value => { if (active) setShares(value) })
+      .catch(error => { if (active) setSharesError(error instanceof Error ? error.message : String(error)) })
+    return () => { active = false }
+  }, [section, accountStatus, account?.id])
   useEffect(() => {
     if (!account?.admin || accountStatus !== 'signed-in') { setSystem(null); setSystemUsers(null); return }
     let active = true
@@ -162,6 +174,23 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
               <Button className="danger-action" disabled={resetting} onClick={() => { void handleReset() }}>
                 {resetting ? 'Deleting…' : 'Delete All Notes'}</Button></div>
           </dialog>
+        </section>
+        <section className={`settings-section ${section === 'Shared Notes' ? 'active' : ''}`}>
+          <h2>SHARED NOTES</h2><p>Anyone with one of these links can read the latest synced version of its note. Revoke a link to disable access immediately.</p>
+          {accountStatus !== 'signed-in' ? <p>Sign in and connect to manage shared links.</p>
+            : shares === null && !sharesError ? <p>Loading Shared Links…</p>
+            : shares?.length ? <div className="share-list">{shares.map(shared => <div className="share-row" key={shared.id}>
+              <span><strong>{shared.title || 'Untitled'}</strong><small>Created {new Date(shared.createdAt).toLocaleDateString()}</small>
+                <a href={shareUrl(shared.id)} target="_blank" rel="noreferrer">{shareUrl(shared.id)}</a></span>
+              <div><Button onClick={() => { void navigator.clipboard.writeText(shareUrl(shared.id)).catch(() => undefined) }}>Copy</Button>
+                <Button className="danger-action" disabled={sharesBusy === shared.id} onClick={() => {
+                  if (!confirm(`Revoke the shared link for “${shared.title || 'Untitled'}”?`)) return
+                  setSharesBusy(shared.id); setSharesError('')
+                  void revokeShare(shared.id).then(() => setShares(current => current?.filter(item => item.id !== shared.id) ?? []))
+                    .catch(error => setSharesError(error instanceof Error ? error.message : String(error))).finally(() => setSharesBusy(''))
+                }}>{sharesBusy === shared.id ? 'Revoking…' : 'Revoke'}</Button></div>
+            </div>)}</div> : !sharesError && <p>No notes are currently shared.</p>}
+          {sharesError && <p className="settings-feedback" role="alert">{sharesError}</p>}
         </section>
         <section className={`settings-section ${section === 'Trash' ? 'active' : ''}`}>
           <h2>TRASH</h2><p>Deleted notes stay here until you restore them or empty the trash.</p>

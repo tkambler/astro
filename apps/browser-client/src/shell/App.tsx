@@ -13,9 +13,13 @@ import { TagManager } from './TagManager'
 import { useAccount } from '../account'
 import { hasInvalidFrontmatter, notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
+import { createShare, shareUrl } from '../shares'
+import type { NoteShare } from '@astronote/schemas'
 
 const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(),
   toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></div><EditorToolbarActions /></> })]
+
+const mobileLayoutQuery = '(max-width: 700px), ((hover: none) and (pointer: coarse))'
 
 const EditorActionsContext = createContext<{
   mode: 'rich' | 'source'; invalidFrontmatter: boolean; heading: ReactNode;
@@ -69,13 +73,14 @@ export function App() {
   const [settings, setSettings] = useState(false)
   const [accountPanel, setAccountPanel] = useState(false)
   const [mobileEditor, setMobileEditor] = useState(false)
-  const [mobileLayout, setMobileLayout] = useState(() => matchMedia('(max-width: 700px)').matches)
+  const [mobileLayout, setMobileLayout] = useState(() => matchMedia(mobileLayoutQuery).matches)
   const [initialLoad, setInitialLoad] = useState<'loading' | 'ready' | 'unavailable'>('loading')
   const [tagMenu, setTagMenu] = useState(false)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const [noteMenu, setNoteMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
+  const [shareDialog, setShareDialog] = useState<{ share: NoteShare | null; error: string } | null>(null)
   const focusShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
   const input = useRef<HTMLInputElement>(null)
   const results = useRef<HTMLDivElement>(null)
@@ -149,7 +154,7 @@ export function App() {
     return () => media.removeEventListener('change', apply)
   }, [preferences])
   useEffect(() => {
-    const media = matchMedia('(max-width: 700px)')
+    const media = matchMedia(mobileLayoutQuery)
     const update = () => setMobileLayout(media.matches)
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
@@ -229,11 +234,22 @@ export function App() {
   const mobileDetail = mobileEditor || settings || accountPanel
   const signedIn = !!account && status !== 'auth-required'
   const connected = !!account && accountStatus === 'signed-in'
+  const shareSelected = async (note: LocalNote) => {
+    setShareDialog({ share: null, error: '' })
+    if (!connected) { setShareDialog({ share: null, error: 'Connect and sign in before sharing a note.' }); return }
+    await sync()
+    if (useNotes.getState().status !== 'synced') {
+      setShareDialog({ share: null, error: 'The note could not be synced. Reconnect and try again.' }); return
+    }
+    try { setShareDialog({ share: await createShare(note.id), error: '' }) }
+    catch (error) { setShareDialog({ share: null, error: error instanceof Error ? error.message : String(error) }) }
+  }
   const commands: CommandAction[] = [
     ...(selected && (!mobileLayout || mobileEditor) ? [{ id: 'pin', label: selected.pinned ? 'Unpin Note' : 'Pin Note', description: selected.title || 'Untitled',
       run: () => { void setPinned(selected.id, !selected.pinned) } },
     ...(mobileLayout ? [{ id: 'tags', label: 'Manage Tags', description: selected.tags.length ? selected.tags.map(tag => `#${tag}`).join(' ') : 'No tags',
       run: () => setTagManagerOpen(true) }] : []),
+    { id: 'share', label: 'Share Note', description: selected.title || 'Untitled', run: () => { void shareSelected(selected) } },
     { id: 'delete', label: 'Delete Note', description: selected.title || 'Untitled',
       run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) setMobileEditor(false) }) } }] : []),
     { id: 'new', label: 'Create Note', run: () => { void createAndOpen('') } },
@@ -241,6 +257,7 @@ export function App() {
     { id: 'account', label: signedIn ? 'Open Account' : 'Sign In', run: () => { setAccountPanel(true); setSettings(false) } },
   ]
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
+    <div className="landscape-blocker" role="status"><span aria-hidden="true">↻</span>Rotate your device to portrait</div>
     <div className="mobile-list-heading">
       <button className="mobile-list-scroll" aria-label="Scroll notes to top"
         onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{initialLoad === 'loading' ? '' : notes.length}</span></button>
@@ -351,6 +368,17 @@ export function App() {
     {tagManagerOpen && selected && <TagManager noteTitle={selected.title} initialTags={selected.tags}
       onClose={() => setTagManagerOpen(false)}
       onSave={async nextTags => { await save(selected.id, selected.title, selected.body, nextTags); setTagManagerOpen(false) }} />}
+    {shareDialog && <><button className="share-dialog-backdrop" aria-label="Close share dialog" onClick={() => setShareDialog(null)} />
+      <section className="share-dialog" role="dialog" aria-modal="true" aria-labelledby="share-dialog-title">
+        <h2 id="share-dialog-title">SHARE NOTE</h2>
+        {!shareDialog.share && !shareDialog.error && <p>Syncing and creating a public link…</p>}
+        {shareDialog.error && <p role="alert">{shareDialog.error}</p>}
+        {shareDialog.share && <><p>Anyone with this link can read the latest synced version of the note.</p>
+          <input readOnly aria-label="Shared note URL" value={shareUrl(shareDialog.share.id)} onFocus={event => event.currentTarget.select()} />
+          <div><button onClick={() => { void navigator.clipboard.writeText(shareUrl(shareDialog.share!.id)) }}>Copy Link</button>
+            {typeof navigator.share === 'function' && <button onClick={() => { void navigator.share({ title: shareDialog.share!.title || 'Untitled', url: shareUrl(shareDialog.share!.id) }) }}>Share…</button>}</div></>}
+        <button className="share-dialog-close" onClick={() => setShareDialog(null)}>Close</button>
+      </section></>}
     {noteMenu && <div ref={noteMenuRef} className="sidebar-note-menu" role="menu" aria-label="Note Actions"
       style={{ left: noteMenu.x, top: noteMenu.y }}>
       <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
@@ -412,7 +440,7 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
     if (!(target instanceof Element && target.closest('.editor-ribbon-heading'))) editorInteracted.current = true
   }
   return <>
-    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ Notes</button><div className="mobile-title-field">{noteTitle()}</div>
+    <div className="editor-heading"><button className="mobile-back" aria-label="Back to notes" onClick={onBack}>‹</button><div className="mobile-title-field">{noteTitle()}</div>
       <button className="mobile-editor-palette palette-trigger" onClick={onOpenCommandPalette} aria-label="Open Command Palette">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
       </button></div>
