@@ -12,7 +12,7 @@ import { access, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createAttachment, attachmentContent, deleteAttachment, listAttachments,
-  AttachmentLimitError } from '../src/index.js'
+  sharedAttachmentContent, AttachmentLimitError } from '../src/index.js'
 
 after(async () => { await database().destroy() })
 
@@ -127,6 +127,9 @@ test('note shares are account scoped, public, current, and revocable', async () 
   const shared = await createNoteShare(owner.id, noteId)
   assert.ok(shared)
   assert.match(shared.id, /^[A-Za-z0-9_-]{22}$/)
+  assert.equal((await createNoteShare(owner.id, noteId))?.id, shared.id)
+  const concurrent = await Promise.all(Array.from({ length: 4 }, () => createNoteShare(owner.id, noteId)))
+  assert.deepEqual(new Set(concurrent.map(item => item?.id)), new Set([shared.id]))
   assert.deepEqual((await listNoteShares(owner.id)).map(item => item.id), [shared.id])
   assert.deepEqual(await listNoteShares(stranger.id), [])
   assert.equal((await getPublicNote(shared.id))?.body, initial.body)
@@ -163,6 +166,17 @@ test('attachments are immutable, account scoped, limited, and removed with a pur
     let downloaded = ''
     for await (const chunk of content!.stream) downloaded += chunk.toString()
     assert.equal(downloaded, 'hello')
+    const share = await createNoteShare(owner.id, noteId)
+    assert.ok(share)
+    const publicContent = await sharedAttachmentContent(share.id, created.id)
+    assert.ok(publicContent)
+    assert.equal((await sharedAttachmentContent(share.id, crypto.randomUUID())), null)
+    assert.equal((await sharedAttachmentContent('not-a-share', created.id)), null)
+    let publicDownload = ''
+    for await (const chunk of publicContent!.stream) publicDownload += chunk.toString()
+    assert.equal(publicDownload, 'hello')
+    assert.equal(await deleteNoteShare(owner.id, share.id), true)
+    assert.equal(await sharedAttachmentContent(share.id, created.id), null)
     for (let index = 1; index < 20; index++) await createAttachment(owner.id, noteId, `file-${index}.txt`, 'text/plain', bytes(''))
     await assert.rejects(createAttachment(owner.id, noteId, 'one-too-many.txt', 'text/plain', bytes('')), AttachmentLimitError)
     assert.equal(await deleteAttachment(stranger.id, created.id), false)
@@ -254,6 +268,10 @@ test('authentication limit is atomic across concurrent attempts and resets after
   assert.equal(decisions.filter(value => !value).length, 5)
   await database()('authentication_limits').update({ reset_at: new Date(0) })
   assert.equal(await authenticationAttemptAllowed(source), true)
+  const strict = `integration-strict:${crypto.randomUUID()}`
+  assert.equal(await authenticationAttemptAllowed(strict, 2, 60_000), true)
+  assert.equal(await authenticationAttemptAllowed(strict, 2, 60_000), true)
+  assert.equal(await authenticationAttemptAllowed(strict, 2, 60_000), false)
 })
 
 test('recovery codes are single use and password recovery revokes old sessions', async () => {

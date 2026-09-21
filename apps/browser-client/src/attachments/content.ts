@@ -19,6 +19,11 @@ async function verifiedResponse(item: Attachment, response: Response) {
   return new Response(content, { headers: { 'Content-Type': item.mediaType, 'Content-Length': String(item.byteSize) } })
 }
 
+export async function cacheAttachmentContent(item: Attachment, content: Blob) {
+  const verified = await verifiedResponse(item, new Response(content, { headers: { 'Content-Type': item.mediaType } }))
+  await (await caches.open(cacheName)).put(cacheKey(item.id), verified)
+}
+
 export async function attachmentResponse(item: Attachment) {
   const store = await caches.open(cacheName)
   const key = cacheKey(item.id)

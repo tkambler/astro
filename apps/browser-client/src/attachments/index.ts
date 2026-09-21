@@ -1,3 +1,5 @@
 export type { Attachment } from '@astronote/schemas'
 export { localAttachments, refreshAttachmentCatalog, rememberAttachment, forgetAttachment, upload } from './catalog'
-export { cached, openAttachment, removeCachedAttachment, clearCachedAttachments } from './content'
+export { attachmentResponse, cached, cacheAttachmentContent, openAttachment, removeCachedAttachment, clearCachedAttachments } from './content'
+export { embeddedImages } from './embedded-images'
+export { embeddedImageSource, embeddedImageId } from './references'

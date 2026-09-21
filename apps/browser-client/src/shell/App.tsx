@@ -1,7 +1,8 @@
-import { Component, createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Component, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MDXEditor, type MDXEditorMethods, BoldItalicUnderlineToggles, BlockTypeSelect,
-  ListsToggle, CreateLink, InsertCodeBlock, toolbarPlugin, headingsPlugin,
-  listsPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, quotePlugin, frontmatterPlugin, tablePlugin } from '@mdxeditor/editor'
+  ListsToggle, CreateLink, InsertCodeBlock, InsertImage, toolbarPlugin, headingsPlugin,
+  listsPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, quotePlugin, frontmatterPlugin, tablePlugin,
+  thematicBreakPlugin, imagePlugin } from '@mdxeditor/editor'
 import { useNotes } from '../notes/state'
 import { onNotesChanged, type LocalNote } from '../notes/local'
 import { applyPreferences, syncAccountPreferences, usePreferences } from '../preferences'
@@ -16,24 +17,24 @@ import { watchRemoteChanges } from '../notes/sync'
 import { createShare, shareUrl } from '../shares'
 import type { NoteShare } from '@astronote/schemas'
 import { AttachmentShelf } from '../attachments/AttachmentShelf'
+import { embeddedImages } from '../attachments'
 
-const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(),
-  toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></div><EditorToolbarActions /></> })]
+function editorPlugins(images: ReturnType<typeof embeddedImages>) {
+  return [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(), thematicBreakPlugin(),
+    imagePlugin({ imageUploadHandler: images.upload, imagePreviewHandler: images.preview, disableImageResize: true, allowSetImageDimensions: false }),
+    toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /><InsertImage /></div><EditorToolbarActions /></> })]
+}
 
 const mobileLayoutQuery = '(max-width: 700px), ((hover: none) and (pointer: coarse))'
 
 function caretIsAtStartOfFirstEditorBlock(target: EventTarget) {
   if (!(target instanceof Element)) return false
-  const editable = target.closest<HTMLElement>('[contenteditable="true"][data-lexical-editor="true"]')
+  const editable = target.closest<HTMLElement>('[contenteditable="true"]')
   const selection = window.getSelection()
   if (!editable || !selection?.isCollapsed || selection.rangeCount === 0 || !selection.anchorNode || !editable.contains(selection.anchorNode)) return false
-  const firstBlock = editable.firstElementChild
-  if (!firstBlock) return selection.anchorNode === editable && selection.anchorOffset === 0
-  if (selection.anchorNode !== editable && !firstBlock.contains(selection.anchorNode)) return false
-  if (selection.anchorNode === editable) return selection.anchorOffset === 0
 
   const contentBeforeCaret = document.createRange()
-  contentBeforeCaret.selectNodeContents(firstBlock)
+  contentBeforeCaret.selectNodeContents(editable)
   contentBeforeCaret.setEnd(selection.anchorNode, selection.anchorOffset)
   return contentBeforeCaret.toString().length === 0
 }
@@ -71,12 +72,12 @@ function EditorToolbarActions() {
   </div>
 }
 
-class RichEditorBoundary extends Component<{ children: ReactNode; onError: () => void }, { failed: boolean }> {
+class RichEditorBoundary extends Component<{ children: ReactNode; onError: (error: unknown) => void }, { failed: boolean }> {
   state = { failed: false }
 
   static getDerivedStateFromError() { return { failed: true } }
 
-  componentDidCatch() { this.props.onError() }
+  componentDidCatch(error: unknown) { this.props.onError(error) }
 
   render() { return this.state.failed ? null : this.props.children }
 }
@@ -421,10 +422,14 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, o
   const spellcheck = usePreferences(state => state.spellcheck)
   const [mode, setMode] = useState<'rich' | 'source'>(editorMode)
   const [richFailed, setRichFailed] = useState(false)
+  const [richError, setRichError] = useState('')
   const invalidFrontmatter = hasInvalidFrontmatter(body)
   const displayMode = invalidFrontmatter || richFailed ? 'source' : mobileLayout ? 'rich' : mode
   const [saveError, setSaveError] = useState<string | null>(null)
   const editor = useRef<MDXEditorMethods>(null)
+  const images = useMemo(() => embeddedImages(note.id), [note.id])
+  const plugins = useMemo(() => editorPlugins(images), [images])
+  useEffect(() => () => images.dispose(), [images])
   const linkTouch = useRef<{ link: HTMLAnchorElement; x: number; y: number } | null>(null)
   const editorInteracted = useRef(false)
   const content = useRef({ title: note.title, body: note.body, tags: note.tags })
@@ -449,7 +454,7 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, o
   const noteTitle = () => <input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} />
   const toolbarActions = {
     mode: displayMode, invalidFrontmatter, heading: <div className="editor-ribbon-heading">{noteTitle()}</div>,
-    showRich: () => { setRichFailed(false); setMode('rich') },
+    showRich: () => { setRichError(''); setRichFailed(false); setMode('rich') },
     showSource: () => setMode('source'),
     deleteNote: () => { if (confirm('Delete this note?')) void onDelete(note.id) },
   }
@@ -463,6 +468,7 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, o
       </button></div>
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
     {invalidFrontmatter && <div className="editor-warning" role="status">Invalid YAML frontmatter. Edit it in source mode to restore the rich editor.</div>}
+    {!invalidFrontmatter && richFailed && <div className="editor-warning" role="alert">Rich text could not render this note: {richError || 'unsupported Markdown syntax'}. Edit it in source mode and try again.</div>}
     {displayMode === 'source' && <EditorActionsContext.Provider value={toolbarActions}><div className="editor-source-toolbar"><EditorToolbarHeading /><EditorToolbarActions /></div></EditorActionsContext.Provider>}
     <div className={`editor-body ${displayMode === 'source' ? 'source-editor' : ''}`}
       onPointerDownCapture={event => markEditorInteraction(event.target)}
@@ -492,9 +498,9 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, o
       window.open(href.href, '_blank', 'noopener,noreferrer')
     }}>
       {displayMode === 'source' ? <textarea aria-label="Markdown source" spellCheck={spellcheck} value={body} onChange={event => { setBody(event.target.value); save(content.current.title, event.target.value) }} />
-        : <EditorActionsContext.Provider value={toolbarActions}><RichEditorBoundary onError={() => { setRichFailed(true); setMode('source') }}><MDXEditor ref={editor} key={`${note.id}-${displayMode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}
-            onError={() => { setRichFailed(true); setMode('source') }}
+        : <EditorActionsContext.Provider value={toolbarActions}><RichEditorBoundary onError={error => { setRichError(error instanceof Error ? error.message : String(error)); setRichFailed(true); setMode('source') }}><MDXEditor ref={editor} key={`${note.id}-${displayMode}`} markdown={body} plugins={plugins} spellCheck={spellcheck}
+            onError={({ error }) => { setRichError(error); setRichFailed(true); setMode('source') }}
             onChange={(value, initialMarkdownNormalize) => { if (editorInteracted.current && !initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} /></RichEditorBoundary></EditorActionsContext.Provider>}
     </div>
-  </section><AttachmentShelf noteId={note.id} mobile={mobileLayout} connected={connected} /></div>
+  </section><AttachmentShelf noteId={note.id} noteBody={body} mobile={mobileLayout} connected={connected} /></div>
 }

@@ -9,9 +9,12 @@ import { mountSystemRoutes } from './system/index.js'
 import { mountShareRoutes } from './shares/index.js'
 import { mountAttachmentRoutes } from './attachments/index.js'
 import { prepareAttachmentStorage } from '@astronote/domain'
+import { securityHeaders } from './security/index.js'
 
 startLogging()
 const app = express()
+app.disable('x-powered-by')
+app.use(securityHeaders(process.env.NODE_ENV === 'production'))
 const trustedProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0)
 if (!Number.isSafeInteger(trustedProxyHops) || trustedProxyHops < 0) throw new Error('TRUST_PROXY_HOPS must be a nonnegative integer')
 app.set('trust proxy', trustedProxyHops)

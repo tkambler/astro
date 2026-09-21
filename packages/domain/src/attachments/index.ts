@@ -96,6 +96,26 @@ export async function attachmentContent(userId: string, id: string) {
   return { attachment: toAttachment(row), stream: createReadStream(contentPath(id)) }
 }
 
+/** Resolves an attachment only when both it and its note are covered by the opaque public share. */
+export async function sharedAttachmentContent(shareId: string, id: string) {
+  const row = await database()('attachments as attachments')
+    .join('note_shares as shares', function joinShare() {
+      this.on('shares.note_id', '=', 'attachments.note_id').andOn('shares.user_id', '=', 'attachments.user_id')
+    })
+    .join('notes as notes', function joinNote() {
+      this.on('notes.id', '=', 'attachments.note_id').andOn('notes.user_id', '=', 'attachments.user_id')
+    })
+    .where('shares.id', shareId).andWhere('attachments.id', id)
+    .andWhere('notes.purged', false).whereNull('notes.deleted_at')
+    .first('attachments.id', 'attachments.note_id', 'attachments.filename', 'attachments.media_type',
+      'attachments.byte_size', 'attachments.sha256', 'attachments.created_at') as Row | undefined
+  if (!row) return null
+  const handle = await open(contentPath(id), 'r').catch(() => null)
+  if (!handle) return null
+  await handle.close()
+  return { attachment: toAttachment(row), stream: createReadStream(contentPath(id)) }
+}
+
 export async function deleteAttachment(userId: string, id: string) {
   const removed = await database().transaction(async tx => {
     const count = await tx('attachments').where({ id, user_id: userId }).del()

@@ -85,6 +85,8 @@ export const recoveryRequest = z.object({
   password: z.string().min(12).max(128),
 })
 export type RecoveryRequest = z.infer<typeof recoveryRequest>
+export const passwordConfirmation = z.object({ password: z.string().min(12).max(128) })
+export type PasswordConfirmation = z.infer<typeof passwordConfirmation>
 export const account = z.object({ id: z.uuid(), email: z.email(), admin: z.boolean() })
 export type Account = z.infer<typeof account>
 export const accountPreferences = z.object({

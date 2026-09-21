@@ -3,6 +3,9 @@ import { database } from '@astronote/db'
 import type { NoteShare, PublicNote } from '@astronote/schemas'
 
 type ShareRow = { id: string; note_id: string; title: string; created_at: Date }
+const maximumSharesPerAccount = 100
+
+export class ShareLimitError extends Error {}
 
 function toShare(row: ShareRow): NoteShare {
   return { id: row.id, noteId: row.note_id, title: row.title, createdAt: row.created_at.toISOString() }
@@ -10,12 +13,19 @@ function toShare(row: ShareRow): NoteShare {
 
 /** Creates an opaque public link for a note owned by the account. */
 export async function createNoteShare(userId: string, noteId: string): Promise<NoteShare | null> {
-  const note = await database()('notes').where({ id: noteId, user_id: userId, purged: false }).whereNull('deleted_at').first('id', 'title')
-  if (!note) return null
-  const id = randomBytes(16).toString('base64url')
-  const now = new Date()
-  await database()('note_shares').insert({ id, note_id: note.id, user_id: userId, created_at: now })
-  return { id, noteId: note.id, title: note.title, createdAt: now.toISOString() }
+  return database().transaction(async tx => {
+    // Serialize share creation per account so the account cap cannot be crossed by concurrent requests for different notes.
+    await tx('users').where({ id: userId }).forUpdate().first('id')
+    const note = await tx('notes').where({ id: noteId, user_id: userId, purged: false }).whereNull('deleted_at').forUpdate().first('id', 'title')
+    if (!note) return null
+    const existing = await tx('note_shares').where({ note_id: note.id, user_id: userId }).first<ShareRow>()
+    if (existing) return toShare({ ...existing, title: note.title })
+    const [{ count = '0' } = {}] = await tx('note_shares').where({ user_id: userId }).count<{ count: string }[]>('* as count')
+    if (Number(count) >= maximumSharesPerAccount) throw new ShareLimitError(`An account can have up to ${maximumSharesPerAccount} shared notes`)
+    const row = { id: randomBytes(16).toString('base64url'), note_id: note.id, user_id: userId, created_at: new Date() }
+    await tx('note_shares').insert(row)
+    return toShare({ ...row, title: note.title })
+  })
 }
 
 /** Lists every active public link owned by the account. */

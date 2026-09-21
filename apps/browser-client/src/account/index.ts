@@ -8,7 +8,7 @@ type AccountState = {
   check(): Promise<void>
   signIn(email: string, password: string, register: boolean): Promise<string | null>
   recover(email: string, recoveryCode: string, password: string): Promise<string>
-  rotateRecoveryCode(): Promise<string>
+  rotateRecoveryCode(password: string): Promise<string>
   signOut(): Promise<boolean>
 }
 
@@ -103,11 +103,15 @@ export const useAccount = create<AccountState>((set, get) => ({
       authPending = false
     }
   },
-  async rotateRecoveryCode() {
+  async rotateRecoveryCode(password) {
     const response = await fetch('/api/account/recovery-code', {
-      method: 'POST', headers: { 'x-astronote-request': '1' },
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-astronote-request': '1' },
+      body: JSON.stringify({ password }),
     })
-    if (!response.ok) throw new Error('Could not generate recovery code')
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({})) as { error?: string }
+      throw new Error(typeof body.error === 'string' ? body.error : 'Could not generate recovery code')
+    }
     const result = await response.json() as { recoveryCode?: unknown }
     if (typeof result.recoveryCode !== 'string') throw new Error('Recovery code missing')
     return result.recoveryCode

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { account, accountPreferences, credentials, note, noteMutation, noteShare, publicNote, pullResult,
-  pushRequest, pushResult, recoveryRequest, shareId, systemSettings, systemUser, attachment, attachmentList } from '@astronote/schemas'
+  passwordConfirmation, pushRequest, pushResult, recoveryRequest, shareId, systemSettings, systemUser, attachment, attachmentList } from '@astronote/schemas'
 
 type Schema = Record<string, unknown>
 type Operation = Schema & { responses: Record<string, Schema> }
@@ -9,6 +9,7 @@ type Operation = Schema & { responses: Record<string, Schema> }
 const requestModels = z.registry<{ id: string }>()
 requestModels.add(credentials, { id: 'Credentials' })
 requestModels.add(recoveryRequest, { id: 'RecoveryRequest' })
+requestModels.add(passwordConfirmation, { id: 'PasswordConfirmation' })
 requestModels.add(noteMutation, { id: 'NoteMutation' })
 requestModels.add(pushRequest, { id: 'PushRequest' })
 const responseModels = z.registry<{ id: string }>()
@@ -67,21 +68,26 @@ const paths: Record<string, Record<string, Operation>> = {
   '/api/account/register': {
     post: write({ operationId: 'register', tags: ['Account'], summary: 'Register and sign in', ...anonymous, requestBody: body(ref('Credentials')),
       responses: { 201: json('Account created; the session cookie is set', object({ account: ref('Account'), recoveryCode })),
-        400: error('Invalid credentials'), 409: error('Account already exists'), 429: error('Too many attempts'), ...failed } }),
+        400: error('Invalid credentials'), 409: error('Account already exists'), 429: error('Too many attempts'),
+        503: error('Authentication service is busy'), ...failed } }),
   },
   '/api/account/login': {
     post: write({ operationId: 'login', tags: ['Account'], summary: 'Sign in', ...anonymous, requestBody: body(ref('Credentials')),
       responses: { 200: json('Signed in; the session cookie is set', object({ account: ref('Account') })),
-        400: error('Invalid credentials'), 401: error('Invalid credentials'), 429: error('Too many attempts'), ...failed } }),
+        400: error('Invalid credentials'), 401: error('Invalid credentials'), 429: error('Too many attempts'),
+        503: error('Authentication service is busy'), ...failed } }),
   },
   '/api/account/recover': {
     post: write({ operationId: 'recoverAccount', tags: ['Account'], summary: 'Reset the password with a recovery code', ...anonymous, requestBody: body(ref('RecoveryRequest')),
       responses: { 200: json('Recovered and signed in; a new recovery code replaces the used one', object({ account: ref('Account'), recoveryCode })),
-        400: error('Invalid recovery details'), 401: error('Invalid recovery details'), 429: error('Too many attempts'), ...failed } }),
+        400: error('Invalid recovery details'), 401: error('Invalid recovery details'), 429: error('Too many attempts'),
+        503: error('Authentication service is busy'), ...failed } }),
   },
   '/api/account/recovery-code': {
     post: write({ operationId: 'rotateRecoveryCode', tags: ['Account'], summary: 'Replace the recovery code',
-      responses: { 200: json('New recovery code', object({ recoveryCode })), ...signedIn, ...failed } }),
+      requestBody: body(ref('PasswordConfirmation')),
+      responses: { 200: json('New recovery code', object({ recoveryCode })), 400: error('Current password is required'),
+        ...signedIn, 429: error('Too many attempts'), 503: error('Authentication service is busy'), ...failed } }),
   },
   '/api/account/preferences': {
     get: { operationId: 'getPreferences', tags: ['Account'], summary: 'Synced preferences',
@@ -141,13 +147,15 @@ const paths: Record<string, Record<string, Operation>> = {
       description: 'Upgrade to a same-origin WebSocket. The server sends `{"type":"ready"}` once connected and `{"type":"changed"}` when '
         + 'this account\'s notes change; clients then pull `/api/notes/changes`. The socket is read-only: any client message closes it.',
       responses: { 101: { description: 'Switching protocols' }, 401: { description: 'Not signed in' },
-        403: { description: 'Cross-origin request' }, 503: { description: 'Change feed unavailable' } } },
+        403: { description: 'Cross-origin request' }, 429: { description: 'Too many realtime connections' },
+        503: { description: 'Change feed unavailable' } } },
   },
   '/api/shares': {
     get: { operationId: 'listShares', tags: ['Shares'], summary: 'List shared links',
       responses: { 200: json('Shared links for this account', object({ shares: { type: 'array', items: ref('NoteShare') } })), ...signedIn, ...failed } },
     post: write({ operationId: 'createShare', tags: ['Shares'], summary: 'Share a note publicly', requestBody: body(object({ noteId: { type: 'string', format: 'uuid' } })),
-      responses: { 201: json('The shared link', ref('NoteShare')), 404: error('Note not found'), ...signedIn, ...failed } }),
+      responses: { 201: json('The shared link', ref('NoteShare')), 404: error('Note not found'),
+        409: error('The account already has 100 shared notes'), 429: error('Too many share creation attempts'), ...signedIn, ...failed } }),
   },
   '/api/shares/{id}': {
     delete: write({ operationId: 'deleteShare', tags: ['Shares'], summary: 'Revoke a shared link', parameters: [parameter('ShareId')],
@@ -155,7 +163,14 @@ const paths: Record<string, Record<string, Operation>> = {
   },
   '/api/shared/{id}': {
     get: { operationId: 'getSharedNote', tags: ['Shares'], summary: 'Read a shared note', ...anonymous, parameters: [parameter('ShareId')],
-      responses: { 200: json('The shared note', ref('PublicNote')), 404: error('Shared note not found'), ...failed } },
+      responses: { 200: json('The shared note', ref('PublicNote')), 404: error('Shared note not found'),
+        429: error('Too many requests'), 503: error('Too many concurrent requests'), ...failed } },
+  },
+  '/api/shared/{id}/attachments/{attachmentId}/content': {
+    get: { operationId: 'getSharedImage', tags: ['Shares'], summary: 'Read an image attached to a shared note', ...anonymous,
+      parameters: [parameter('ShareId'), parameter('SharedAttachmentId')],
+      responses: { 200: { description: 'The immutable image content', content: { 'image/*': { schema: { type: 'string', format: 'binary' } } } },
+        404: error('Shared image not found'), 429: error('Too many requests'), 503: error('Too many concurrent requests'), ...failed } },
   },
   '/api/system/settings': {
     get: { operationId: 'getSystemSettings', tags: ['System'], summary: 'System settings (administrators)',
@@ -197,6 +212,7 @@ export function createOpenApiDocument(options: { sessionCookie: string }) {
         ShareId: { name: 'id', in: 'path', required: true, schema: withoutDialect(z.toJSONSchema(shareId)) },
         NoteId: { name: 'noteId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
         AttachmentId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        SharedAttachmentId: { name: 'attachmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       },
       schemas: {
         ...components(requestModels, 'input'),

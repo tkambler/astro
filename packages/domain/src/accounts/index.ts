@@ -7,12 +7,15 @@ const maxmem = 64 * 1024 * 1024
 const sessionLifetimeMs = 30 * 24 * 60 * 60 * 1000
 const authenticationWindowMs = 15 * 60 * 1000
 let nextLimitPrune = 0
+let activePasswordDerivations = 0
+const maximumPasswordDerivations = 4
 
 export class AccountAlreadyExistsError extends Error {}
 export class RegistrationDisabledError extends Error {}
+export class AuthenticationBusyError extends Error {}
 
 /** Counts account attempts atomically in PostgreSQL so every API instance shares the limit. */
-export async function authenticationAttemptAllowed(source: string) {
+export async function authenticationAttemptAllowed(source: string, maximum = 20, windowMs = authenticationWindowMs) {
   const now = Date.now()
   if (now >= nextLimitPrune) {
     nextLimitPrune = now + 60 * 60 * 1000
@@ -26,17 +29,26 @@ export async function authenticationAttemptAllowed(source: string) {
         ELSE authentication_limits.attempts + 1 END,
       reset_at = CASE WHEN authentication_limits.reset_at <= now() THEN EXCLUDED.reset_at
         ELSE authentication_limits.reset_at END
-    RETURNING attempts`, [key, new Date(now + authenticationWindowMs)])
-  return (result.rows[0]?.attempts ?? 21) <= 20
+    RETURNING attempts`, [key, new Date(now + windowMs)])
+  return (result.rows[0]?.attempts ?? maximum + 1) <= maximum
+}
+
+export async function clearAuthenticationAttempts(source: string) {
+  const key = createHash('sha256').update(source).digest('hex')
+  await database()('authentication_limits').where({ key_hash: key }).delete()
 }
 
 async function derive(password: string, salt: string) {
-  return await new Promise<Buffer>((resolve, reject) => {
-    scryptCallback(password, Buffer.from(salt, 'hex'), 64, { N, r, p, maxmem }, (error, result) => {
-      if (error) reject(error)
-      else resolve(result)
+  if (activePasswordDerivations >= maximumPasswordDerivations) throw new AuthenticationBusyError('Authentication service is busy')
+  activePasswordDerivations++
+  try {
+    return await new Promise<Buffer>((resolve, reject) => {
+      scryptCallback(password, Buffer.from(salt, 'hex'), 64, { N, r, p, maxmem }, (error, result) => {
+        if (error) reject(error)
+        else resolve(result)
+      })
     })
-  })
+  } finally { activePasswordDerivations-- }
 }
 async function hashPassword(password: string) {
   const salt = randomBytes(32).toString('hex')

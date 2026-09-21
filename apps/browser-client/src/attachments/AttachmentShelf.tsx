@@ -15,7 +15,7 @@ function formatSize(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
-export function AttachmentShelf({ noteId, mobile, connected }: { noteId: string; mobile: boolean; connected: boolean }) {
+export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteId: string; noteBody: string; mobile: boolean; connected: boolean }) {
   const [items, setItems] = useState<Attachment[]>([])
   const [available, setAvailable] = useState<Set<string>>(new Set())
   const [transfers, setTransfers] = useState<Transfer[]>([])
@@ -48,6 +48,17 @@ export function AttachmentShelf({ noteId, mobile, connected }: { noteId: string;
     window.addEventListener('astronote-remote-change', changed)
     return () => window.removeEventListener('astronote-remote-change', changed)
   }, [open, connected, noteId])
+  useEffect(() => {
+    const created = (event: Event) => {
+      const item = (event as CustomEvent<Attachment>).detail
+      if (item.noteId === noteId) {
+        setItems(current => current.some(value => value.id === item.id) ? current : [...current, item])
+        setAvailable(current => new Set(current).add(item.id))
+      }
+    }
+    window.addEventListener('astronote-attachment-created', created)
+    return () => window.removeEventListener('astronote-attachment-created', created)
+  }, [noteId])
   useEffect(() => {
     if (!mobile) { dialog.current?.close(); return }
     if (open && !dialog.current?.open) dialog.current?.showModal()
@@ -112,7 +123,9 @@ export function AttachmentShelf({ noteId, mobile, connected }: { noteId: string;
   }
   const remove = async (item: Attachment) => {
     if (!connected) { setMessage('Connect to manage attachments.'); return }
-    if (!confirm(`Delete “${item.filename}”? This cannot be undone.`)) return
+    const embedded = noteBody.includes(`attachment:${item.id}`)
+    if (!confirm(embedded ? `Delete “${item.filename}”? It is displayed in this note and will become a broken image.`
+      : `Delete “${item.filename}”? This cannot be undone.`)) return
     const response = await fetch(`/api/attachments/${item.id}`, { method: 'DELETE', headers: { 'x-astronote-request': '1' } })
     if (!response.ok) { setMessage(response.status === 401 ? 'Sign in to manage attachments.' : 'Could not delete attachment.'); return }
     await Promise.all([forgetAttachment(item.id), removeCachedAttachment(item.id)])

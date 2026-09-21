@@ -10,6 +10,8 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
   const [password, setPassword] = useState('')
   const [recoveryInput, setRecoveryInput] = useState('')
   const [newRecoveryCode, setNewRecoveryCode] = useState('')
+  const [confirmingRecovery, setConfirmingRecovery] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -48,9 +50,13 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
     catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
   }
-  const regenerate = async () => {
+  const regenerate = async (event: React.FormEvent) => {
+    event.preventDefault()
     setBusy(true); setError('')
-    try { setNewRecoveryCode(await rotateRecoveryCode()) }
+    try {
+      setNewRecoveryCode(await rotateRecoveryCode(currentPassword))
+      setCurrentPassword(''); setConfirmingRecovery(false)
+    }
     catch (error) { setError(error instanceof Error ? error.message : String(error)) }
     finally { setBusy(false) }
   }
@@ -62,7 +68,11 @@ export function AccountPanel({ onClose, onAccountChanged }: { onClose(): void; o
         <Button variant="primary" className="account-action" onClick={() => { void navigator.clipboard.writeText(newRecoveryCode).catch(error => setError(String(error))) }}>Copy Code</Button>
         <Button variant="ghost" className="account-switch" onClick={() => { setNewRecoveryCode(''); onClose() }}>I Saved the Code</Button></>
       : account ? <><h1>{account.email}</h1><p>Your notes sync with this account. They remain available on this device when offline.</p>
-        <Button variant="ghost" className="account-switch" disabled={busy} onClick={() => { void regenerate() }}>Generate a New Recovery Code</Button>
+        {confirmingRecovery ? <form onSubmit={event => { void regenerate(event) }}>
+          <label>Current Password <Input type="password" minLength={12} maxLength={128} autoComplete="current-password" required value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label>
+          <Button variant="primary" className="account-action" disabled={busy} type="submit">{busy ? 'Working…' : 'Generate Recovery Code'}</Button>
+          <Button variant="ghost" className="account-switch" disabled={busy} type="button" onClick={() => { setConfirmingRecovery(false); setCurrentPassword(''); setError('') }}>Cancel</Button>
+        </form> : <Button variant="ghost" className="account-switch" disabled={busy} onClick={() => setConfirmingRecovery(true)}>Generate a New Recovery Code</Button>}
         <Button variant="primary" className="account-action" disabled={busy} onClick={() => { void logout() }}>Sign Out</Button></>
       : status === 'offline' && activeAccountId() ? <><h1>Account Offline</h1><p>Your notes are still available on this device. You can sign out here now; the server session will close when you reconnect.</p>
         <Button variant="primary" className="account-action" disabled={busy} onClick={() => { void logout() }}>Sign Out on This Device</Button></>
