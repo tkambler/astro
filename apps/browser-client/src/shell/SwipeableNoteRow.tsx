@@ -34,6 +34,7 @@ export function SwipeableNoteRow({ children, deleteLabel, mobile, open, onOpenCh
     },
     onTouchEndOrOnMouseUp: () => { setDragX(null); gestureAxis.current = null },
   })
+  const activeOffset = dragX ?? (open ? -actionWidth : null)
 
   return <div {...swipe} className={`result-swipe ${open || (dragX !== null && dragX < 0) ? 'is-revealed' : ''}`}
     onTouchCancel={() => { setDragX(null); gestureAxis.current = null }} onClickCapture={event => {
@@ -43,7 +44,9 @@ export function SwipeableNoteRow({ children, deleteLabel, mobile, open, onOpenCh
       suppressClickUntil.current = 0
     }
   }}>
-    <div className="result-front" style={mobile ? { transform: `translate3d(${dragX ?? (open ? -actionWidth : 0)}px, 0, 0)`, transition: dragX === null ? undefined : 'none' } : undefined}>
+    <div className="result-front" style={mobile && activeOffset !== null
+      ? { transform: `translateX(${activeOffset}px)`, transition: dragX === null ? undefined : 'none' }
+      : undefined}>
       {children}
     </div>
     <button className="result-delete" type="button" aria-label={deleteLabel} tabIndex={open && mobile ? 0 : -1}
