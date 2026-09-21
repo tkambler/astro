@@ -7,12 +7,16 @@ This repository contains a monorepo (managed via
 / apps. Some important examples include:
 
 - ./apps/browser-client - React app that provides the browser-based UI. It uses: React, TypeScript, Zustand, Shadcn/ui
-- ./apps/server - Express-based REST API used by the React app.
+- ./apps/server - Express-based REST API used by the React app. Its OpenAPI document (served at `/api/openapi.json`, with Swagger UI at `/api/docs`) must stay in sync with the routes; see ./apps/server/AGENTS.md.
 - ./packages/db - All DB logic lives here (including migration scripts, seed data, etc...). We use PostgreSQL and the [knex](https://knexjs.org/) library.
 - ./packages/domain - All server-side business logic lives here, grouped by business domain. This is the only package that uses ./packages/db.
 - ./packages/schemas - All shared data validation lives here. We use [Zod](https://zod.dev), and export an inferred TypeScript type alongside every validation function. Validator function names always begin with a lower-case letter. The corresponding TypeScript type always uses Pascal case.
 - ./packages/events - Server-side library responsible for emitting events whenever anything of interest occurs. It uses the "Emittery" library and is well-typed.
 - ./packages/log - Shared pino instance for server-side logging. Nothing logs directly. Instead, events are emitted via. the `events` package. Logic lives there for logging (when appropriate). Logs are always printed to the console (not prettified). In development mode, logs are also saved to a git ignored `logs` folder.
+
+# API Documentation
+
+Any change to the REST API (adding, removing, or renaming a route; changing a request body, query parameter, header, response shape, or status code) must update the OpenAPI document in `./apps/server/src/docs/openapi.ts` in the same change. Changes to Zod schemas in `./packages/schemas` that are used by the API flow into the document automatically, but new request/response schemas must be registered there. Run `npm test` before finishing: it fails when a mounted route is undocumented or a documented route no longer exists.
 
 This app prioritizes the ability to function off-line. The app should remain *fully functional* when used offline.
 

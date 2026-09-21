@@ -6,7 +6,7 @@ An offline-first note app. The browser stores notes and pending edits in PGlite'
 
 1. Use Node 24 or newer, and install Docker.
 2. Run `npm install` and `npm run dev`. The dev command starts an isolated PostgreSQL container on a free localhost port and applies migrations. To use an existing PostgreSQL database instead, set `DATABASE_URL` before running it.
-3. Open `http://localhost:3001`. The API server serves the built frontend and `/api/...` on this port.
+3. Open `http://localhost:3001`. The API server serves the built frontend and `/api/...` on this port. Interactive API documentation is at `http://localhost:3001/api/docs`; the raw OpenAPI document is at `/api/openapi.json`.
 
 Stop the local database with `docker compose -f docker-compose.dev.yml down`. Its notes remain in a dedicated Docker volume for the next run.
 

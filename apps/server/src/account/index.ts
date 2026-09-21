@@ -6,7 +6,7 @@ import { accountForSession, authenticateAccount, createSession, endSession,
 import { account, accountPreferences, credentials, recoveryRequest } from '@astronote/schemas'
 
 const secure = process.env.NODE_ENV === 'production'
-const cookieName = secure ? '__Host-astronote' : 'astronote_dev'
+export const sessionCookieName = secure ? '__Host-astronote' : 'astronote_dev'
 const cookieAttributes = `Path=/; HttpOnly; SameSite=Strict${secure ? '; Secure' : ''}`
 async function limited(request: Request, response: Response) {
   if (await authenticationAttemptAllowed(`account:${request.ip ?? request.socket.remoteAddress ?? 'unknown'}`)) return false
@@ -15,13 +15,13 @@ async function limited(request: Request, response: Response) {
 }
 function token(request: { headers: { cookie?: string } }) {
   const cookies = request.headers.cookie?.split(';') ?? []
-  return cookies.map(cookie => cookie.trim()).find(cookie => cookie.startsWith(`${cookieName}=`))?.slice(cookieName.length + 1) ?? ''
+  return cookies.map(cookie => cookie.trim()).find(cookie => cookie.startsWith(`${sessionCookieName}=`))?.slice(sessionCookieName.length + 1) ?? ''
 }
 function setCookie(response: Response, value: string) {
-  response.setHeader('Set-Cookie', `${cookieName}=${value}; Max-Age=2592000; ${cookieAttributes}`)
+  response.setHeader('Set-Cookie', `${sessionCookieName}=${value}; Max-Age=2592000; ${cookieAttributes}`)
 }
 function clearCookie(response: Response) {
-  response.setHeader('Set-Cookie', `${cookieName}=; Max-Age=0; ${cookieAttributes}`)
+  response.setHeader('Set-Cookie', `${sessionCookieName}=; Max-Age=0; ${cookieAttributes}`)
 }
 
 export function currentAccount(request: { headers: { cookie?: string } }) {

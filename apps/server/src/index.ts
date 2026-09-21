@@ -1,7 +1,8 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { createServer } from 'node:http'
 import { startLogging } from '@astronote/log'
-import { mountAccountRoutes } from './account/index.js'
+import { mountAccountRoutes, sessionCookieName } from './account/index.js'
+import { mountApiDocs } from './docs/index.js'
 import { mountFrontend } from './frontend/index.js'
 import { mountNoteRoutes, mountNoteSockets } from './notes/index.js'
 import { mountSystemRoutes } from './system/index.js'
@@ -24,6 +25,7 @@ mountAccountRoutes(app)
 mountSystemRoutes(app)
 mountShareRoutes(app)
 app.get('/api/health', (_request, response) => response.json({ ok: true }))
+mountApiDocs(app, { sessionCookie: sessionCookieName })
 mountNoteRoutes(app)
 app.use('/api', (_request, response) => response.status(404).json({ error: 'Not found' }))
 mountFrontend(app)
