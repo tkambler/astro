@@ -168,6 +168,7 @@ button { cursor: pointer; }
 .editor-body [class*='contentEditable'] a { color: var(--accent); }
 .editor-body [class*='contentEditable'] > * { max-width: var(--editor-length, 720px); }
 .editor-body [class*='contentEditable'] > :first-child, .editor-body [class*='contentEditable'] > :first-child > :first-child { margin-block-start: 0 !important; padding-block-start: 0 !important; }
+.editor-body [class*='contentEditable'] > [data-lexical-decorator='true']:first-child + * { margin-block-start: 0 !important; }
 .editor-body [class*='contentEditable'] > :has([class*='codeMirrorWrapper']) { max-width: none; }
 .statusbar { height: 32px; flex: none; display: flex; justify-content: space-between; align-items: center; padding: 0 16px; border-top: 1px solid var(--line); background: var(--bg-chrome); letter-spacing: 0; }
 .statusbar-account { flex: none; max-width: 35%; padding: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
