@@ -22,6 +22,22 @@ const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(
 
 const mobileLayoutQuery = '(max-width: 700px), ((hover: none) and (pointer: coarse))'
 
+function caretIsAtStartOfFirstEditorBlock(target: EventTarget) {
+  if (!(target instanceof Element)) return false
+  const editable = target.closest<HTMLElement>('[contenteditable="true"][data-lexical-editor="true"]')
+  const selection = window.getSelection()
+  if (!editable || !selection?.isCollapsed || selection.rangeCount === 0 || !selection.anchorNode || !editable.contains(selection.anchorNode)) return false
+  const firstBlock = editable.firstElementChild
+  if (!firstBlock) return selection.anchorNode === editable && selection.anchorOffset === 0
+  if (selection.anchorNode !== editable && !firstBlock.contains(selection.anchorNode)) return false
+  if (selection.anchorNode === editable) return selection.anchorOffset === 0
+
+  const contentBeforeCaret = document.createRange()
+  contentBeforeCaret.selectNodeContents(firstBlock)
+  contentBeforeCaret.setEnd(selection.anchorNode, selection.anchorOffset)
+  return contentBeforeCaret.toString().length === 0
+}
+
 const EditorActionsContext = createContext<{
   mode: 'rich' | 'source'; invalidFrontmatter: boolean; heading: ReactNode;
   showRich: () => void; showSource: () => void; deleteNote: () => void
@@ -450,7 +466,10 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, o
     {displayMode === 'source' && <EditorActionsContext.Provider value={toolbarActions}><div className="editor-source-toolbar"><EditorToolbarHeading /><EditorToolbarActions /></div></EditorActionsContext.Provider>}
     <div className={`editor-body ${displayMode === 'source' ? 'source-editor' : ''}`}
       onPointerDownCapture={event => markEditorInteraction(event.target)}
-      onKeyDownCapture={event => markEditorInteraction(event.target)}
+      onKeyDownCapture={event => {
+        markEditorInteraction(event.target)
+        if (event.key === 'ArrowUp' && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && caretIsAtStartOfFirstEditorBlock(event.target)) event.preventDefault()
+      }}
       onBeforeInputCapture={event => markEditorInteraction(event.target)}
       onPasteCapture={event => markEditorInteraction(event.target)}
       onTouchCancelCapture={() => { linkTouch.current = null }} onTouchStartCapture={event => {
