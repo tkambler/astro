@@ -15,6 +15,7 @@ import { hasInvalidFrontmatter, notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
 import { createShare, shareUrl } from '../shares'
 import type { NoteShare } from '@astronote/schemas'
+import { AttachmentShelf } from '../attachments/AttachmentShelf'
 
 const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(),
   toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></div><EditorToolbarActions /></> })]
@@ -142,7 +143,7 @@ export function App() {
   }, [])
   useEffect(() => {
     if (!account || status === 'auth-required') return
-    return watchRemoteChanges(() => { void useNotes.getState().sync() }, () => {
+    return watchRemoteChanges(() => { window.dispatchEvent(new Event('astronote-remote-change')); void useNotes.getState().sync() }, () => {
       void useAccount.getState().check().then(() => useNotes.getState().sync())
     })
   }, [account?.id, status === 'auth-required'])
@@ -360,7 +361,7 @@ export function App() {
         }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />
-          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
+          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} connected={connected} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
@@ -395,7 +396,7 @@ export function App() {
   </div>
 }
 
-function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenCommandPalette }: { note: LocalNote; mobileLayout: boolean;
+function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, onOpenCommandPalette }: { note: LocalNote; mobileLayout: boolean; connected: boolean;
   onSave: (id: string, title: string, body: string, tags: string[]) => Promise<void>;
   onDelete: (id: string) => Promise<void>; onBack: () => void; onOpenCommandPalette: () => void }) {
   const [title, setTitle] = useState(note.title)
@@ -439,7 +440,7 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
   const markEditorInteraction = (target: EventTarget) => {
     if (!(target instanceof Element && target.closest('.editor-ribbon-heading'))) editorInteracted.current = true
   }
-  return <>
+  return <div className="note-editor-layout"><section className="note-document">
     <div className="editor-heading"><button className="mobile-back" aria-label="Back to notes" onClick={onBack}>‹</button><div className="mobile-title-field">{noteTitle()}</div>
       <button className="mobile-editor-palette palette-trigger" onClick={onOpenCommandPalette} aria-label="Open Command Palette">
         <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
@@ -476,5 +477,5 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenComman
             onError={() => { setRichFailed(true); setMode('source') }}
             onChange={(value, initialMarkdownNormalize) => { if (editorInteracted.current && !initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} /></RichEditorBoundary></EditorActionsContext.Provider>}
     </div>
-  </>
+  </section><AttachmentShelf noteId={note.id} mobile={mobileLayout} connected={connected} /></div>
 }

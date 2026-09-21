@@ -5,3 +5,4 @@ export { listNotes, listTags, listTrash, saveNote, setPinned, restoreNote, empty
 export { pendingMutations, acceptPush, acceptConflict, receiveNote, getCursor, setCursor,
   getGeneration, resetLocalNotes } from './sync-state'
 export { activateAccount, deactivateAccount } from './workspace'
+export { listLocalAttachments, saveLocalAttachment, deleteLocalAttachment, replaceLocalAttachments } from './attachments'

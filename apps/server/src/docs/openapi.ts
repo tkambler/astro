@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { account, accountPreferences, credentials, note, noteMutation, noteShare, publicNote, pullResult,
-  pushRequest, pushResult, recoveryRequest, shareId, systemSettings, systemUser } from '@astronote/schemas'
+  pushRequest, pushResult, recoveryRequest, shareId, systemSettings, systemUser, attachment, attachmentList } from '@astronote/schemas'
 
 type Schema = Record<string, unknown>
 type Operation = Schema & { responses: Record<string, Schema> }
@@ -21,6 +21,8 @@ responseModels.add(account, { id: 'Account' })
 responseModels.add(accountPreferences, { id: 'AccountPreferences' })
 responseModels.add(systemSettings, { id: 'SystemSettings' })
 responseModels.add(systemUser, { id: 'SystemUser' })
+responseModels.add(attachment, { id: 'Attachment' })
+responseModels.add(attachmentList, { id: 'AttachmentList' })
 
 const withoutDialect = ({ $schema: _, $id: __, ...schema }: Schema) => schema
 
@@ -113,6 +115,27 @@ const paths: Record<string, Record<string, Operation>> = {
         400: error('Invalid note generation or mutations'), 409: error('Notes were reset on another device'),
         413: error('Request exceeds the size limit'), ...signedIn, ...failed } }),
   },
+  '/api/notes/{noteId}/attachments': {
+    get: { operationId: 'listAttachments', tags: ['Attachments'], summary: 'List files attached to a note',
+      parameters: [parameter('NoteId')], responses: { 200: json('The note attachments', ref('AttachmentList')),
+        404: error('Note not found'), ...signedIn, ...failed } },
+    post: write({ operationId: 'createAttachment', tags: ['Attachments'], summary: 'Attach a file to a note',
+      parameters: [parameter('NoteId'), { name: 'filename', in: 'query', required: true, schema: { type: 'string', minLength: 1, maxLength: 255 } }],
+      requestBody: { required: true, content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary', maxLength: 25 * 1024 * 1024 } } } },
+      responses: { 201: json('The stored attachment', ref('Attachment')), 400: error('Invalid filename or note ID'),
+        404: error('Note not found'), 409: error('The note already has 20 attachments'), 413: error('File exceeds 25 MB'), ...signedIn, ...failed } }),
+  },
+  '/api/attachments/{id}/content': {
+    get: { operationId: 'downloadAttachment', tags: ['Attachments'], summary: 'Download an attached file',
+      parameters: [parameter('AttachmentId')], responses: { 200: { description: 'The immutable file content',
+        content: { 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } } },
+        400: error('Invalid attachment ID'), 404: error('Attachment not found'), ...signedIn, ...failed } },
+  },
+  '/api/attachments/{id}': {
+    delete: write({ operationId: 'deleteAttachment', tags: ['Attachments'], summary: 'Permanently delete an attachment',
+      parameters: [parameter('AttachmentId')], responses: { 204: noContent, 400: error('Invalid attachment ID'),
+        404: error('Attachment not found'), ...signedIn, ...failed } }),
+  },
   '/api/notes/socket': {
     get: { operationId: 'watchNotes', tags: ['Notes'], summary: 'Realtime change hints (WebSocket)',
       description: 'Upgrade to a same-origin WebSocket. The server sends `{"type":"ready"}` once connected and `{"type":"changed"}` when '
@@ -158,6 +181,7 @@ export function createOpenApiDocument(options: { sessionCookie: string }) {
     tags: [
       { name: 'Account', description: 'Registration, sessions, recovery, and synced preferences' },
       { name: 'Notes', description: 'Offline-first note sync: pull changes by cursor, push batched mutations' },
+      { name: 'Attachments', description: 'Connected file resources owned by notes' },
       { name: 'Shares', description: 'Public read-only links to individual notes' },
       { name: 'System', description: 'Health and administrator settings' },
     ],
@@ -171,6 +195,8 @@ export function createOpenApiDocument(options: { sessionCookie: string }) {
         AstronoteGeneration: { name: 'x-astronote-generation', in: 'header',
           description: 'The note generation the client last synced; see `GET /api/notes/state`.', schema: { type: 'integer', minimum: 0, default: 0 } },
         ShareId: { name: 'id', in: 'path', required: true, schema: withoutDialect(z.toJSONSchema(shareId)) },
+        NoteId: { name: 'noteId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        AttachmentId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       },
       schemas: {
         ...components(requestModels, 'input'),

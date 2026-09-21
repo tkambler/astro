@@ -8,6 +8,11 @@ import { accountForSession, authenticateAccount, createSession, endSession,
   getAccountPreferences, setAccountPreferences } from '../src/index.js'
 import { createNoteShare, deleteNoteShare, getPublicNote, listNoteShares } from '../src/index.js'
 import { recoveryRequest } from '@astronote/schemas'
+import { access, mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createAttachment, attachmentContent, deleteAttachment, listAttachments,
+  AttachmentLimitError } from '../src/index.js'
 
 after(async () => { await database().destroy() })
 
@@ -131,6 +136,44 @@ test('note shares are account scoped, public, current, and revocable', async () 
   assert.ok(await getPublicNote(shared.id))
   assert.equal(await deleteNoteShare(owner.id, shared.id), true)
   assert.equal(await getPublicNote(shared.id), null)
+})
+
+test('attachments are immutable, account scoped, limited, and removed with a purged note', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'astronote-attachments-'))
+  const previous = process.env.ATTACHMENT_STORAGE_PATH
+  process.env.ATTACHMENT_STORAGE_PATH = directory
+  try {
+    const owner = await registerAccount({ email: `attachments-${crypto.randomUUID()}@example.test`,
+      password: 'test-password-long-enough' })
+    const stranger = await registerAccount({ email: `attachments-${crypto.randomUUID()}@example.test`,
+      password: 'test-password-long-enough' })
+    const noteId = crypto.randomUUID()
+    const original = { mutationId: crypto.randomUUID(), id: noteId, baseRevision: 0,
+      title: 'With files', body: '', tags: [], deleted: false }
+    await pushNotes(owner.id, [original])
+    async function * bytes(value: string) { yield new TextEncoder().encode(value) }
+    const created = await createAttachment(owner.id, noteId, 'résumé.txt', 'text/plain', bytes('hello'))
+    assert.equal(created.byteSize, 5)
+    assert.equal(created.sha256, '2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824')
+    assert.deepEqual((await listAttachments(owner.id, noteId))?.map(item => item.id), [created.id])
+    assert.equal(await listAttachments(stranger.id, noteId), null)
+    assert.equal(await attachmentContent(stranger.id, created.id), null)
+    const content = await attachmentContent(owner.id, created.id)
+    assert.ok(content)
+    let downloaded = ''
+    for await (const chunk of content!.stream) downloaded += chunk.toString()
+    assert.equal(downloaded, 'hello')
+    for (let index = 1; index < 20; index++) await createAttachment(owner.id, noteId, `file-${index}.txt`, 'text/plain', bytes(''))
+    await assert.rejects(createAttachment(owner.id, noteId, 'one-too-many.txt', 'text/plain', bytes('')), AttachmentLimitError)
+    assert.equal(await deleteAttachment(stranger.id, created.id), false)
+    await pushNotes(owner.id, [{ ...original, mutationId: crypto.randomUUID(), baseRevision: 1, deleted: true, purged: true }])
+    assert.equal(await listAttachments(owner.id, noteId), null)
+    await assert.rejects(access(join(directory, created.id)))
+  } finally {
+    if (previous === undefined) delete process.env.ATTACHMENT_STORAGE_PATH
+    else process.env.ATTACHMENT_STORAGE_PATH = previous
+    await rm(directory, { recursive: true, force: true })
+  }
 })
 
 test('a batch applies independent notes atomically and preserves mutation order', async () => {

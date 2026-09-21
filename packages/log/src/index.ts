@@ -16,4 +16,7 @@ export function startLogging() {
   subscribed = true
   events.on('sync.completed', event => logger.info(event, 'sync completed'))
   events.on('sync.failed', event => logger.warn(event, 'sync failed'))
+  events.on('attachment.created', event => logger.info(event, 'attachment created'))
+  events.on('attachment.deleted', event => logger.info(event, 'attachment deleted'))
+  events.on('attachment.failed', event => logger.warn(event, 'attachment failed'))
 }

@@ -80,10 +80,11 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
     setImportProgress({ label: 'Reading Backup', completed: 0, total: 0 })
     try {
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
-      const count = await importNotes(file, (completed, total) => setImportProgress({ label: 'Importing Notes', completed, total }))
-      setImportProgress({ label: 'Loading Notes', completed: count, total: count })
+      const result = await importNotes(file, (completed, total) => setImportProgress({ label: 'Importing Notes', completed, total }))
+      setImportProgress({ label: 'Loading Notes', completed: result.notes, total: result.notes })
       await onNotesImported()
-      setMessage(`Imported ${count} ${count === 1 ? 'note' : 'notes'} on this device.`)
+      setMessage(`Imported ${result.notes} ${result.notes === 1 ? 'note' : 'notes'} on this device.${result.omittedAttachments
+        ? ` ${result.omittedAttachments} attached ${result.omittedAttachments === 1 ? 'file was' : 'files were'} not included in the backup.` : ''}`)
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Import failed') }
     finally { setImportProgress(null) }
     if (backupInput.current) backupInput.current.value = ''

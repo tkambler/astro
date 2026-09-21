@@ -18,7 +18,7 @@ RUN npm run build -w @astronote/db \
  && npm prune --omit=dev
 
 FROM node:24-bookworm-slim
-ENV NODE_ENV=production PORT=3001
+ENV NODE_ENV=production PORT=3001 ATTACHMENT_STORAGE_PATH=/data/attachments
 WORKDIR /app
 
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
@@ -27,6 +27,7 @@ COPY --from=build --chown=node:node /app/apps/browser-client/dist ./apps/browser
 COPY --from=build --chown=node:node /app/packages/db/dist ./packages/db/dist
 COPY --from=build --chown=node:node /app/apps/server/package.json ./apps/server/package.json
 COPY --from=build --chown=node:node /app/packages/db/package.json ./packages/db/package.json
+RUN mkdir -p /data/attachments && chown node:node /data/attachments
 
 USER node
 EXPOSE 3001

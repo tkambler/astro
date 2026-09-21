@@ -24,6 +24,9 @@ services:
     environment:
       DATABASE_URL: postgres://astronote:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/astronote
       TRUST_PROXY_HOPS: "1"
+      ATTACHMENT_STORAGE_PATH: /data/attachments
+    volumes:
+      - attachment_data:/data/attachments
     depends_on:
       db:
         condition: service_healthy
@@ -48,3 +51,4 @@ networks:
 
 volumes:
   postgres_data:
+  attachment_data:

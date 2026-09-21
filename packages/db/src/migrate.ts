@@ -11,6 +11,7 @@ import * as purged from './migrations/202609200009_purged.js'
 import * as system from './migrations/202609200010_system.js'
 import * as accountPreferences from './migrations/202609200011_account_preferences.js'
 import * as noteShares from './migrations/202609200012_note_shares.js'
+import * as attachments from './migrations/202609200013_attachments.js'
 
 const migrations = { '202609200001_notes': notes, '202609200002_accounts': accounts,
   '202609200003_tags': tags, '202609200004_authentication_limits': authenticationLimits,
@@ -18,7 +19,8 @@ const migrations = { '202609200001_notes': notes, '202609200002_accounts': accou
   '202609200007_note_reset_generation': noteResetGeneration, '202609200008_pinned': pinned,
   '202609200009_purged': purged, '202609200010_system': system,
   '202609200011_account_preferences': accountPreferences,
-  '202609200012_note_shares': noteShares }
+  '202609200012_note_shares': noteShares,
+  '202609200013_attachments': attachments }
 
 const db = database()
 try {

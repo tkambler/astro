@@ -3,6 +3,7 @@ node_modules/
 dist/
 .turbo/
 logs/
+.data/
 .env
 .env.local
 /tmp

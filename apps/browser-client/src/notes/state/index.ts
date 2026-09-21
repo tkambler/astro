@@ -5,6 +5,7 @@ import { activeAccountId, emptyTrash as emptyLocalTrash, listNotes, listTrash, n
 import { resetAllNotes, syncNotes, type SyncProgress } from '../sync'
 import { usePreferences, type NoteSort, type SortDirection } from '../../preferences'
 import { useAccount } from '../../account'
+import { removeCachedAttachment } from '../../attachments'
 
 let editSyncTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -122,12 +123,13 @@ export const useNotes = create<State>((set, get) => ({
     return true
   },
   async emptyTrash() {
-    let count: number
-    try { count = await emptyLocalTrash() }
+    let result: { count: number; attachmentIds: string[] }
+    try { result = await emptyLocalTrash() }
     catch (error) { set({ status: 'storage-error', error: String(error) }); throw error }
+    await Promise.all(result.attachmentIds.map(removeCachedAttachment))
     await get().refresh()
-    if (count) void get().sync()
-    return count
+    if (result.count) void get().sync()
+    return result.count
   },
   async reset() {
     clearTimeout(editSyncTimer)

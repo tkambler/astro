@@ -3,6 +3,7 @@ import { acceptConflict, acceptPush, activeAccountId, getCursor, getGeneration, 
   receiveNote, resetLocalNotes, setCursor } from '../local'
 import { useAccount } from '../../account'
 import { nextPushBatch } from './batch'
+import { clearCachedAttachments } from '../../attachments'
 export { watchRemoteChanges } from './changes'
 
 export type SyncProgress = { completed: number; total: number }
@@ -41,7 +42,7 @@ export async function resetAllNotes() {
       ? 'Sign in before resetting notes.' : 'Could not delete notes from the server. No local notes were removed.')
     const { generation } = await response.json() as { generation: unknown }
     if (activeAccountId() !== accountId) throw new Error('Account changed during reset')
-    try { await resetLocalNotes(accountId, validGeneration(generation)) }
+    try { await resetLocalNotes(accountId, validGeneration(generation)); await clearCachedAttachments(accountId) }
     catch { throw new Error('Server notes were deleted, but this device could not clear its copy. Reconnect to finish the reset.') }
   } finally { resetInProgress = false }
 }
@@ -79,7 +80,7 @@ async function performSync(accountId: string, onProgress: ((progress: SyncProgre
     if (!stillActive()) return null
     const local = await getGeneration(accountId)
     if (generation < local) throw new Error('Server note generation is older than this device')
-    if (generation !== local) await resetLocalNotes(accountId, generation)
+    if (generation !== local) { await resetLocalNotes(accountId, generation); await clearCachedAttachments(accountId) }
     return generation
   }
   const generation = await reconcileGeneration()

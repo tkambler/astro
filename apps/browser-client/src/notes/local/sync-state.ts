@@ -74,6 +74,7 @@ export async function resetLocalNotes(ownerId: string, generation: number) {
   await ready()
   await db.transaction(async tx => {
     await tx.query('DELETE FROM notes WHERE owner_id=$1', [ownerId])
+    await tx.query('DELETE FROM attachments WHERE owner_id=$1', [ownerId])
     await tx.query('DELETE FROM sync_state WHERE key=$1', [`cursor:${ownerId}`])
     await tx.query(`INSERT INTO sync_state(key,value) VALUES ($1,$2)
       ON CONFLICT(key) DO UPDATE SET value=$2`, [`generation:${ownerId}`, String(generation)])

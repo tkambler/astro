@@ -7,6 +7,8 @@ import { mountFrontend } from './frontend/index.js'
 import { mountNoteRoutes, mountNoteSockets } from './notes/index.js'
 import { mountSystemRoutes } from './system/index.js'
 import { mountShareRoutes } from './shares/index.js'
+import { mountAttachmentRoutes } from './attachments/index.js'
+import { prepareAttachmentStorage } from '@astronote/domain'
 
 startLogging()
 const app = express()
@@ -24,6 +26,7 @@ app.use('/api/shares', express.json({ limit: '16kb' }))
 mountAccountRoutes(app)
 mountSystemRoutes(app)
 mountShareRoutes(app)
+mountAttachmentRoutes(app)
 app.get('/api/health', (_request, response) => response.json({ ok: true }))
 mountApiDocs(app, { sessionCookie: sessionCookieName })
 mountNoteRoutes(app)
@@ -35,5 +38,6 @@ app.use((error: unknown, _request: Request, response: Response, next: NextFuncti
   next(error)
 })
 const server = createServer(app)
+await prepareAttachmentStorage()
 await mountNoteSockets(server)
 server.listen(Number(process.env.PORT ?? 3001))

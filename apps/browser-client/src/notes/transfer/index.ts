@@ -1,22 +1,31 @@
 import { z } from 'zod'
 import { activeAccountId, importLocalNotes, listNotes } from '../local'
 import { textNote } from './frontmatter'
+import { localAttachments } from '../../attachments'
 
-const backup = z.object({
+const noteBackup = z.object({ title: z.string().max(500), body: z.string(),
+  tags: z.array(z.string().min(1).max(50)).max(20).optional(), pinned: z.boolean().optional(),
+  createdAt: z.iso.datetime().optional(), updatedAt: z.iso.datetime().optional() })
+const backupV1 = z.object({
   format: z.literal('astronote-backup'),
   version: z.literal(1),
   exportedAt: z.iso.datetime(),
-  notes: z.array(z.object({ title: z.string().max(500), body: z.string(),
-    tags: z.array(z.string().min(1).max(50)).max(20).optional(), pinned: z.boolean().optional(),
-    createdAt: z.iso.datetime().optional(), updatedAt: z.iso.datetime().optional() })),
+  notes: z.array(noteBackup),
 })
+const attachmentManifest = z.object({ filename: z.string().min(1).max(255), mediaType: z.string().max(255),
+  byteSize: z.number().int().nonnegative(), createdAt: z.iso.datetime() })
+const backupV2 = z.object({ format: z.literal('astronote-backup'), version: z.literal(2), exportedAt: z.iso.datetime(),
+  notes: z.array(noteBackup.extend({ attachments: z.array(attachmentManifest).max(20).optional() })) })
+const backup = z.discriminatedUnion('version', [backupV1, backupV2])
 
 /** Downloads a portable JSON copy of the device's non-deleted notes. */
 export async function exportNotes() {
   const notes = await listNotes()
-  const data = backup.parse({ format: 'astronote-backup', version: 1,
-    exportedAt: new Date().toISOString(), notes: notes.map(({ title, body, tags, pinned, createdAt, updatedAt }) =>
-      ({ title, body, tags, pinned, createdAt, updatedAt })) })
+  const exported = await Promise.all(notes.map(async ({ id, title, body, tags, pinned, createdAt, updatedAt }) =>
+    ({ title, body, tags, pinned, createdAt, updatedAt, attachments: (await localAttachments(id)).map(
+      ({ filename, mediaType, byteSize, createdAt }) => ({ filename, mediaType, byteSize, createdAt })) })))
+  const data = backup.parse({ format: 'astronote-backup', version: 2,
+    exportedAt: new Date().toISOString(), notes: exported })
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
   const link = document.createElement('a')
   link.href = url
@@ -32,7 +41,9 @@ export async function importNotes(file: File, onProgress?: (completed: number, t
   const data = backup.parse(JSON.parse(await file.text()))
   onProgress?.(0, data.notes.length)
   await importLocalNotes(data.notes, onProgress)
-  return data.notes.length
+  const omittedAttachments = data.version === 2
+    ? data.notes.reduce((total, note) => total + (note.attachments?.length ?? 0), 0) : 0
+  return { notes: data.notes.length, omittedAttachments }
 }
 
 /** Imports Markdown and text files as new notes in one local transaction. */

@@ -46,6 +46,12 @@ export function ready() {
     UPDATE notes SET synced_body=body,synced_title=title
       WHERE dirty=false AND synced_body='' AND synced_title='';
     CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS attachments (
+      id UUID PRIMARY KEY, note_id UUID NOT NULL, owner_id TEXT NOT NULL,
+      filename TEXT NOT NULL, media_type TEXT NOT NULL, byte_size INTEGER NOT NULL,
+      sha256 TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS attachments_note ON attachments(owner_id, note_id, created_at);
   `).then(() => undefined).catch(error => { initialized = undefined; throw error })
   return initialized
 }

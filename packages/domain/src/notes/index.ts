@@ -1,6 +1,7 @@
 import { database, publishNoteChange, watchNoteChanges } from '@astronote/db'
 export { watchNoteChanges }
 import type { Note, NoteMutation, PushResult, PullResult } from '@astronote/schemas'
+import { removeStoredAttachmentFiles } from '../attachments/index.js'
 
 type Row = { id: string; title: string; body: string; tags: string[]; pinned: boolean; purged: boolean; revision: number;
   created_at: Date; updated_at: Date; deleted_at: Date | null }
@@ -23,21 +24,27 @@ export async function noteGeneration(userId: string): Promise<number> {
 
 /** Permanently removes an account's notes and history, then invalidates older clients. */
 export async function resetNotes(userId: string): Promise<number> {
-  return database().transaction(async tx => {
+  const ids: string[] = []
+  const generation = await database().transaction(async tx => {
     await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
     const [user] = await tx('users').where({ id: userId }).increment('note_generation', 1).returning('note_generation')
     if (!user) throw new Error('Account not found')
+    const attached = await tx('attachments').where({ user_id: userId }).select<{ id: string }[]>('id')
+    ids.push(...attached.map(item => item.id))
     await tx('note_mutations').where({ user_id: userId }).del()
     await tx('note_changes').where({ user_id: userId }).del()
     await tx('notes').where({ user_id: userId }).del()
     await publishNoteChange(tx, userId)
     return user.note_generation as number
   })
+  await removeStoredAttachmentFiles(ids)
+  return generation
 }
 
 /** Applies each mutation once, using a server revision as the conflict boundary. */
 export async function pushNotes(userId: string, mutations: NoteMutation[], generation = 0): Promise<PushResult> {
-  return database().transaction(async tx => {
+  const removedAttachmentIds: string[] = []
+  const result = await database().transaction(async tx => {
     // Serialize change sequence allocation so pull cursors cannot skip late commits.
     await tx.raw('SELECT pg_advisory_xact_lock(918273645)')
     const user = await tx('users').where({ id: userId }).first('note_generation')
@@ -75,6 +82,11 @@ export async function pushNotes(userId: string, mutations: NoteMutation[], gener
         deleted_at: mutation.deleted || purged ? now : null }
       if (current) await tx('notes').where({ id: mutation.id, user_id: userId }).update(data)
       else await tx('notes').insert({ ...data, user_id: userId })
+      if (purged) {
+        const attached = await tx('attachments').where({ note_id: mutation.id, user_id: userId }).select<{ id: string }[]>('id')
+        removedAttachmentIds.push(...attached.map(item => item.id))
+        await tx('attachments').where({ note_id: mutation.id, user_id: userId }).del()
+      }
       await tx('note_changes').insert({ note_id: mutation.id, user_id: userId, revision })
       await tx('note_mutations').insert({ id: mutation.mutationId, note_id: mutation.id, user_id: userId })
       changed = true
@@ -83,6 +95,8 @@ export async function pushNotes(userId: string, mutations: NoteMutation[], gener
     if (changed) await publishNoteChange(tx, userId)
     return { results }
   })
+  await removeStoredAttachmentFiles(removedAttachmentIds)
+  return result
 }
 
 /** Returns a bounded change page, including tombstones, after the given cursor. */

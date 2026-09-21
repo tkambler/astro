@@ -4,3 +4,5 @@ export { registerAccount, authenticateAccount, createSession, accountForSession,
   RegistrationDisabledError, getAccountPreferences, setAccountPreferences } from './accounts/index.js'
 export { getSystemSettings, setAccountRegistration, listSystemUsers, SystemAccessDeniedError } from './system/index.js'
 export { createNoteShare, listNoteShares, deleteNoteShare, getPublicNote } from './shares/index.js'
+export { prepareAttachmentStorage, listAttachments, createAttachment, attachmentContent, deleteAttachment, removeStoredAttachmentFiles,
+  AttachmentNotFoundError, AttachmentLimitError, AttachmentTooLargeError } from './attachments/index.js'

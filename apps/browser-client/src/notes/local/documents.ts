@@ -41,11 +41,20 @@ export async function restoreNote(id: string, ownerId = owner()) {
 /** Clears content from all recoverable deleted notes, retaining sync tombstones. */
 export async function emptyTrash(ownerId = owner()) {
   await ready()
-  const result = await db.query(`UPDATE notes SET title='',body='',tags='{}'::text[],pinned=false,purged=true,
-    synced_title='',synced_body='',updated_at=$2,dirty=true,mutation_id=gen_random_uuid()
-    WHERE owner_id=$1 AND deleted_at IS NOT NULL AND purged=false`, [ownerId, new Date().toISOString()])
-  if (result.rowCount) announceChange()
-  return result.rowCount ?? 0
+  const attachmentIds: string[] = []
+  const count = await db.transaction(async tx => {
+    const attached = await tx.query<{ id: string }>(`SELECT attachments.id FROM attachments
+      JOIN notes ON notes.id=attachments.note_id AND notes.owner_id=attachments.owner_id
+      WHERE notes.owner_id=$1 AND notes.deleted_at IS NOT NULL AND notes.purged=false`, [ownerId])
+    attachmentIds.push(...attached.rows.map(row => row.id))
+    const result = await tx.query(`UPDATE notes SET title='',body='',tags='{}'::text[],pinned=false,purged=true,
+      synced_title='',synced_body='',updated_at=$2,dirty=true,mutation_id=gen_random_uuid()
+      WHERE owner_id=$1 AND deleted_at IS NOT NULL AND purged=false`, [ownerId, new Date().toISOString()])
+    await tx.query(`DELETE FROM attachments WHERE owner_id=$1 AND id=ANY($2::uuid[])`, [ownerId, attachmentIds])
+    return result.rowCount ?? 0
+  })
+  if (count) announceChange()
+  return { count, attachmentIds }
 }
 export async function saveNote(id: string, title: string, body: string, deleted = false, ownerId = owner(), tags: string[] = []) {
   await ready()

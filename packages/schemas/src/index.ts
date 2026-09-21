@@ -45,6 +45,19 @@ export const pullResult = z.object({
 })
 export type PullResult = z.infer<typeof pullResult>
 
+export const attachment = z.object({
+  id: z.uuid(),
+  noteId: z.uuid(),
+  filename: z.string().min(1).max(255),
+  mediaType: z.string().min(1).max(255),
+  byteSize: z.number().int().nonnegative().max(25 * 1024 * 1024),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  createdAt: z.iso.datetime(),
+})
+export type Attachment = z.infer<typeof attachment>
+export const attachmentList = z.object({ attachments: z.array(attachment).max(20) })
+export type AttachmentList = z.infer<typeof attachmentList>
+
 export const shareId = z.string().regex(/^[A-Za-z0-9_-]{22}$/)
 export const noteShare = z.object({
   id: shareId,
