@@ -6,12 +6,38 @@ export type CommandAction = { id: string; label: string; description?: string; r
 export function CommandPalette({ actions, onClose }: { actions: CommandAction[]; onClose(): void }) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
+  const [viewport, setViewport] = useState(() => ({ top: window.visualViewport?.offsetTop ?? 0,
+    height: window.visualViewport?.height ?? window.innerHeight }))
   const input = useRef<HTMLInputElement>(null)
   const matches = actions.filter(action => `${action.label} ${action.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
   useEffect(() => { input.current?.focus() }, [])
+  useEffect(() => {
+    const visualViewport = window.visualViewport
+    if (!visualViewport) return
+    const update = () => setViewport({ top: visualViewport.offsetTop, height: visualViewport.height })
+    visualViewport.addEventListener('resize', update)
+    visualViewport.addEventListener('scroll', update)
+    update()
+    return () => {
+      visualViewport.removeEventListener('resize', update)
+      visualViewport.removeEventListener('scroll', update)
+    }
+  }, [])
+  useEffect(() => {
+    const preventBackgroundScroll = (event: TouchEvent) => {
+      if (!(event.target instanceof Element && event.target.closest('.command-results'))) event.preventDefault()
+    }
+    document.documentElement.classList.add('command-palette-open')
+    document.addEventListener('touchmove', preventBackgroundScroll, { passive: false })
+    return () => {
+      document.documentElement.classList.remove('command-palette-open')
+      document.removeEventListener('touchmove', preventBackgroundScroll)
+    }
+  }, [])
   const run = (action: CommandAction) => { onClose(); action.run() }
 
-  return <div className="command-overlay" onClick={event => { if (event.target === event.currentTarget) onClose() }}>
+  return <div className="command-overlay" style={{ top: viewport.top, height: viewport.height }}
+    onClick={event => { if (event.target === event.currentTarget) onClose() }}>
     <div className="command-palette" role="dialog" aria-modal="true" aria-label="Command Palette" onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onClose() }
       if (event.key === 'ArrowDown') { event.preventDefault(); setActive(index => Math.min(Math.max(0, matches.length - 1), index + 1)) }

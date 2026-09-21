@@ -164,6 +164,14 @@ export function App() {
     return () => document.removeEventListener('pointerdown', closeSortMenu)
   }, [])
   useEffect(() => {
+    if (!tagMenu) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTagMenu(false)
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [tagMenu])
+  useEffect(() => {
     if (!noteMenu) return
     noteMenuRef.current?.querySelector('button')?.focus()
     const closeOnOutsideClick = (event: PointerEvent) => {
@@ -242,8 +250,10 @@ export function App() {
             : <path d="M18 8v8h4V8h-4" />}
         </svg>
       </button>
-      <button className="mobile-header-settings" aria-label="Settings" title="Settings"
-        onClick={() => { setSettings(true); setAccountPanel(false) }}>⚙</button>
+      <button className="mobile-header-palette palette-trigger" aria-label="Open Command Palette"
+        title="Command Palette" aria-pressed={paletteOpen} onClick={() => setPaletteOpen(value => !value)}>
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
+      </button>
     </div>
     <header className="omnibar">
       <span className="prompt" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m7 4 6 6-6 6" /></svg></span>
@@ -260,7 +270,6 @@ export function App() {
       {search && <button className="mobile-clear" aria-label="Clear search" onClick={() => void setSearch('')}>×</button>}
       <button className="icon-button palette-trigger" aria-label="Open Command Palette" title={`Command Palette (${focusShortcut.startsWith('⌘') ? '⌘⇧O' : 'Ctrl Shift O'})`} aria-pressed={paletteOpen}
         onClick={() => setPaletteOpen(value => !value)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg></button>
-      <button className="icon-button" aria-label="Settings" aria-pressed={settings} onClick={() => { setSettings(value => !value); setAccountPanel(false) }}>⚙</button>
     </header>
     <div className="workspace">
       <aside className={`sidebar ${mobileEditor || settings || accountPanel ? 'mobile-hidden' : ''}`}>
@@ -277,11 +286,15 @@ export function App() {
           {mobileLayout && <>
             <button className="mobile-tags" aria-expanded={tagMenu} aria-label="Filter by tag"
               onClick={() => setTagMenu(value => !value)}>{tagFilter ? `#${tagFilter}` : 'TAGS'}</button>
-            {tagMenu && <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
-              <button aria-pressed={!tagFilter} onClick={() => { void setTagFilter(null); setTagMenu(false) }}>All Tags</button>
-              {tags.map(tag => <button key={tag} aria-pressed={tagFilter === tag} onClick={() => { void setTagFilter(tag); setTagMenu(false) }}>#{tag}</button>)}
-              {!tags.length && <span>No Tags Yet</span>}
-            </div>}
+            {tagMenu && <>
+              <button type="button" className="tag-filter-dismiss" tabIndex={-1} aria-label="Close tag filter"
+                onClick={() => setTagMenu(false)} />
+              <div className="tag-filter-menu" role="group" aria-label="Filter notes by tag">
+                <button aria-pressed={!tagFilter} onClick={() => { void setTagFilter(null); setTagMenu(false) }}>All Tags</button>
+                {tags.map(tag => <button key={tag} aria-pressed={tagFilter === tag} onClick={() => { void setTagFilter(tag); setTagMenu(false) }}>#{tag}</button>)}
+                {!tags.length && <span>No Tags Yet</span>}
+              </div>
+            </>}
           </>}
         </div>
         <div className="results" ref={results} onScroll={() => setNoteMenu(null)}>
@@ -322,7 +335,7 @@ export function App() {
         {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />
-          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} />
+          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
@@ -343,9 +356,9 @@ export function App() {
   </div>
 }
 
-function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: LocalNote; mobileLayout: boolean;
+function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack, onOpenCommandPalette }: { note: LocalNote; mobileLayout: boolean;
   onSave: (id: string, title: string, body: string, tags: string[]) => Promise<void>;
-  onDelete: (id: string) => Promise<void>; onBack: () => void }) {
+  onDelete: (id: string) => Promise<void>; onBack: () => void; onOpenCommandPalette: () => void }) {
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
   const [tags, setTags] = useState(note.tags)
@@ -356,22 +369,11 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
   const [richFailed, setRichFailed] = useState(false)
   const invalidFrontmatter = hasInvalidFrontmatter(body)
   const displayMode = invalidFrontmatter || richFailed ? 'source' : mobileLayout ? 'rich' : mode
-  const [moreMenu, setMoreMenu] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const editor = useRef<MDXEditorMethods>(null)
-  const mobileMoreButton = useRef<HTMLButtonElement>(null)
-  const mobileMorePopup = useRef<HTMLDivElement>(null)
   const linkTouch = useRef<{ link: HTMLAnchorElement; x: number; y: number } | null>(null)
   const editorInteracted = useRef(false)
   const content = useRef({ title: note.title, body: note.body, tags: note.tags })
-  useEffect(() => {
-    const closeOnOutsideClick = (event: PointerEvent) => {
-      const target = event.target as Node
-      if (!mobileMoreButton.current?.contains(target) && !mobileMorePopup.current?.contains(target)) setMoreMenu(false)
-    }
-    document.addEventListener('pointerdown', closeOnOutsideClick)
-    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
-  }, [])
   useEffect(() => {
     if (note.dirty) return
     if (note.title !== content.current.title) setTitle(note.title)
@@ -407,9 +409,10 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
     if (!(target instanceof Element && target.closest('.editor-ribbon-heading'))) editorInteracted.current = true
   }
   return <>
-    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ results</button>{noteTitle()}{tagControls()}
-      <button ref={mobileMoreButton} className="mobile-more" onClick={() => setMoreMenu(value => !value)} aria-label="More Note Actions" aria-expanded={moreMenu}>⋯</button>
-      {moreMenu && <div ref={mobileMorePopup} className="mobile-more-menu" role="menu"><button role="menuitem" className="danger" onClick={() => { setMoreMenu(false); if (confirm('Delete this note?')) void onDelete(note.id) }}>Delete</button></div>}</div>
+    <div className="editor-heading"><button className="mobile-back" onClick={onBack}>‹ Notes</button><div className="mobile-title-field">{noteTitle()}</div>{tagControls()}
+      <button className="mobile-editor-palette palette-trigger" onClick={onOpenCommandPalette} aria-label="Open Command Palette">
+        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
+      </button></div>
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
     {invalidFrontmatter && <div className="editor-warning" role="status">Invalid YAML frontmatter. Edit it in source mode to restore the rich editor.</div>}
     {displayMode === 'source' && <EditorActionsContext.Provider value={toolbarActions}><div className="editor-source-toolbar"><EditorToolbarHeading /><EditorToolbarActions /></div></EditorActionsContext.Provider>}
@@ -442,6 +445,5 @@ function NoteEditor({ note, mobileLayout, onSave, onDelete, onBack }: { note: Lo
             onError={() => { setRichFailed(true); setMode('source') }}
             onChange={(value, initialMarkdownNormalize) => { if (editorInteracted.current && !initialMarkdownNormalize && value !== content.current.body) { setBody(value); save(content.current.title, value) } }} /></RichEditorBoundary></EditorActionsContext.Provider>}
     </div>
-    <div className="mobile-editor-actions"><span>{note.dirty ? 'saved locally' : 'saved'}{richFailed ? ' · source fallback' : ''}</span><button className="done" onClick={onBack}>DONE</button></div>
   </>
 }
