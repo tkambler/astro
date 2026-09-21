@@ -278,7 +278,7 @@ export function App() {
     <div className="landscape-blocker" role="status"><span aria-hidden="true">↻</span>Rotate your device to portrait</div>
     <div className="mobile-list-heading">
       <button className="mobile-list-scroll" aria-label="Scroll notes to top"
-        onClick={() => results.current?.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{initialLoad === 'loading' ? '' : notes.length}</span></button>
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{initialLoad === 'loading' ? '' : notes.length}</span></button>
       <button className={`mobile-connection ${connected ? 'connected' : ''}`}
         aria-label={connected ? 'Account Connected' : 'Account Disconnected'}
         title={connected ? 'Account Connected' : 'Account Disconnected'}

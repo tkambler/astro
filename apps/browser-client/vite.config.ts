@@ -15,7 +15,7 @@ export default defineConfig({
     strategies: 'injectManifest', srcDir: 'src', filename: 'sw.ts',
     injectRegister: null, registerType: 'autoUpdate',
     manifest: { name: 'Astronote', short_name: 'Astronote', start_url: '/', display: 'standalone', orientation: 'portrait',
-      background_color: '#ffffff', theme_color: '#f2f1ee',
+      background_color: '#ffffff', theme_color: '#ffffff',
       icons: [
         { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
         { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any maskable' },

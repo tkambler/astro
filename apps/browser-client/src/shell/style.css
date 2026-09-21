@@ -5,13 +5,14 @@
 @import '../../../../design/tokens.css';
 
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-html, body { overscroll-behavior: none; }
-#root { position: fixed; inset: 0; }
+html, body, #root { margin: 0; width: 100%; height: 100%; }
+html { background: var(--bg); color-scheme: light; }
+:root[data-theme='dark'] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) { color-scheme: dark; } }
 body, button, input, textarea { font-family: var(--font-mono); }
 body { color: var(--text); background: var(--bg); }
 button { cursor: pointer; }
-.app { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; background: var(--bg); }
+.app { display: flex; flex-direction: column; height: 100dvh; min-height: 0; background: var(--bg); }
 .omnibar { height: 66px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--line); }
 .prompt { display: flex; flex: none; align-items: center; justify-content: center; width: 20px; height: 20px; color: var(--accent); }
 .prompt svg { display: block; width: 20px; height: 20px; }
@@ -43,7 +44,7 @@ button { cursor: pointer; }
 .sort-options { position: absolute; top: calc(100% + 8px); left: 0; z-index: 5; display: flex; flex-direction: column; min-width: 170px; padding: 5px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); box-shadow: 0 8px 24px #0002; }
 .sort-options button { border: 0; border-radius: 4px; padding: 9px 10px; background: transparent; color: var(--text-body); text-align: left; font-size: 11px; letter-spacing: 0; }
 .sort-options button:hover, .sort-options button:focus-visible, .sort-options button[aria-pressed='true'] { color: var(--accent); background: var(--accent-tint); }
-.results { min-height: 0; flex: 1; overflow-y: auto; overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; }
+.results { flex: 1; overflow-y: auto; }
 :root.command-palette-open .results { overflow-y: hidden; }
 :root.tag-manager-open .editor-body { overflow-y: hidden; }
 .results::-webkit-scrollbar { width: 9px; }
@@ -290,21 +291,25 @@ button { cursor: pointer; }
 .tag-manager-actions .tag-manager-save { border-color: var(--accent); background: var(--accent); color: white; }
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
   .mobile-list .mobile-list-heading, .mobile-list .omnibar, .mobile-list .sidebar { -webkit-user-select: none; user-select: none; }
+  .app.mobile-list { min-height: 100dvh; height: auto; overflow: visible; background: var(--bg-chrome); }
+  .mobile-list .workspace, .mobile-list .sidebar { display: block; min-height: 0; }
+  .mobile-list .results { overflow: visible; padding-top: calc(178px + env(safe-area-inset-top)); }
   .command-viewport { padding: 12px; }
   .command-results { min-height: 0; max-height: none; }
-  .mobile-list-heading { display: flex; width: 100%; height: 58px; flex: none; align-items: center; gap: 8px; padding: 0 18px; background: var(--bg); color: var(--text-muted); font-size: 12px; letter-spacing: .24em; }
+  .mobile-list-heading { position: fixed; top: 0; left: 0; z-index: 10; display: flex; width: 100%; height: calc(58px + env(safe-area-inset-top)); flex: none; align-items: center; gap: 8px; padding: env(safe-area-inset-top) 18px 0; background: var(--bg); color: var(--text-muted); font-size: 12px; letter-spacing: .24em; }
   .mobile-list-scroll { display: flex; flex: 1; min-width: 0; height: 100%; align-items: center; justify-content: space-between; border: 0; padding: 0; background: transparent; color: inherit; text-align: left; font-size: inherit; letter-spacing: inherit; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   .mobile-list-scroll:active { background: transparent; }
   .mobile-connection { display: inline-flex; flex: none; width: 38px; height: 38px; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); }
   .mobile-connection.connected { color: var(--accent); }
   .mobile-connection svg { width: 23px; height: 23px; }
   .mobile-header-palette { flex: none; width: 38px; height: 38px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--text-secondary); }
-  .omnibar { height: 64px; margin: 0; padding: 0 18px; gap: 10px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }.omnibar input { font-size: 17px; }.chip { display: none; }
+  .omnibar { height: 64px; margin: 0; padding: 0 18px; gap: 10px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }.mobile-list > .omnibar { position: fixed; top: calc(58px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 10; background: var(--bg); }.omnibar input { font-size: 17px; }.chip { display: none; }
   .mobile-clear { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 20px; }
   .omnibar .icon-button, .omnibar-shortcut { display: none; }
   .mobile-detail > .omnibar, .mobile-detail > .mobile-list-heading { display: none; }
   .sidebar { max-width: none; width: 100%; }.mobile-hidden { display: none; }
   .sidebar-heading { padding: 0 18px; letter-spacing: .16em; }
+  .mobile-list .sidebar-heading { position: fixed; top: calc(122px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 10; background: var(--bg-chrome); }
   .sidebar-heading .mobile-tags { display: inline-flex; align-items: center; justify-content: center; max-width: 120px; margin-left: auto; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; background: var(--bg); color: var(--text-secondary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .result-swipe { position: relative; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, var(--text-muted)); touch-action: pan-y; }.result-front { position: relative; z-index: 1; background: var(--bg-chrome); transition: transform .18s ease; }.result { padding: 18px; background: var(--bg-chrome); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   .result:hover, .result.selected { background: var(--bg-chrome); box-shadow: none; color: var(--text-body); }
