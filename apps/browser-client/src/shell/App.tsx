@@ -93,14 +93,26 @@ export function App() {
       if (loadAttempt.current === attempt) setInitialLoad('unavailable')
     }, 10_000)
     void (async () => {
+      let locallyReady = false
       try {
         await refresh()
+        if (useNotes.getState().status === 'storage-error') {
+          if (loadAttempt.current === attempt) setInitialLoad('unavailable')
+          return
+        }
+        locallyReady = true
+        if (loadAttempt.current === attempt) {
+          setInitialLoad('ready')
+          if (loadTimer.current) {
+            clearTimeout(loadTimer.current)
+            loadTimer.current = null
+          }
+        }
         await useAccount.getState().check()
         await refresh()
         await sync()
-        if (loadAttempt.current === attempt) setInitialLoad('ready')
       } catch {
-        if (loadAttempt.current === attempt) setInitialLoad('unavailable')
+        if (!locallyReady && loadAttempt.current === attempt) setInitialLoad('unavailable')
       } finally {
         if (loadAttempt.current === attempt && loadTimer.current) {
           clearTimeout(loadTimer.current)
