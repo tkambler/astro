@@ -42,16 +42,22 @@ export async function acceptConflict(mutation: NoteMutation, serverNote: Note, o
   })
   announceChange()
 }
-export async function receiveNote(note: Note, ownerId = owner()) {
+/** Applies a server change page atomically and announces it once after commit. */
+export async function receiveNotes(notes: Note[], ownerId = owner()) {
+  if (!notes.length) return
   await ready()
-  await db.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags,pinned,purged,synced_body,synced_title)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,false,NULL,$4,$8,$9::text[],$10,$11,$3,$2)
-    ON CONFLICT (id) DO UPDATE SET title=$2,body=$3,revision=$4,created_at=$5,updated_at=$6,deleted_at=$7,tags=$9::text[],pinned=$10,purged=$11,
-      dirty=false,mutation_id=NULL,base_revision=$4,synced_body=$3,synced_title=$2
-    WHERE notes.owner_id=$8 AND notes.dirty = false AND notes.revision < $4`,
-    [note.id, note.title, note.body, note.revision, note.createdAt, note.updatedAt, note.deletedAt, ownerId, note.tags, note.pinned, note.purged])
+  await db.transaction(async tx => {
+    for (const note of notes) await tx.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags,pinned,purged,synced_body,synced_title)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,false,NULL,$4,$8,$9::text[],$10,$11,$3,$2)
+      ON CONFLICT (id) DO UPDATE SET title=$2,body=$3,revision=$4,created_at=$5,updated_at=$6,deleted_at=$7,tags=$9::text[],pinned=$10,purged=$11,
+        dirty=false,mutation_id=NULL,base_revision=$4,synced_body=$3,synced_title=$2
+      WHERE notes.owner_id=$8 AND notes.dirty = false AND notes.revision < $4`,
+      [note.id, note.title, note.body, note.revision, note.createdAt, note.updatedAt, note.deletedAt, ownerId, note.tags, note.pinned, note.purged])
+  })
   announceChange()
 }
+
+export async function receiveNote(note: Note, ownerId = owner()) { await receiveNotes([note], ownerId) }
 export async function getCursor(ownerId = owner()) {
   await ready()
   const result = await db.query<{ value: string }>(`SELECT value FROM sync_state WHERE key=$1`, [`cursor:${ownerId}`])

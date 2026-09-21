@@ -1,6 +1,6 @@
 import { pullResult, pushResult } from '@astronote/schemas'
 import { acceptConflict, acceptPush, activeAccountId, getCursor, getGeneration, pendingMutations,
-  receiveNote, resetLocalNotes, setCursor } from '../local'
+  receiveNotes, resetLocalNotes, setCursor } from '../local'
 import { useAccount } from '../../account'
 import { nextPushBatch } from './batch'
 import { clearCachedAttachments } from '../../attachments'
@@ -132,10 +132,8 @@ async function performSync(accountId: string, onProgress: ((progress: SyncProgre
     if (!response.ok) throw new Error(`Pull failed (${response.status})`)
     const page = pullResult.parse(await response.json())
     if (!stillActive()) return { pushed, pulled }
-    for (const note of page.changes) {
-      if (!stillActive()) return { pushed, pulled }
-      await receiveNote(note, accountId); pulled++
-    }
+    await receiveNotes(page.changes, accountId)
+    pulled += page.changes.length
     if (!stillActive()) return { pushed, pulled }
     await setCursor(page.cursor, accountId)
     hasMore = page.hasMore
