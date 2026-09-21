@@ -251,6 +251,7 @@ button { cursor: pointer; }
   .mobile-title-field { display: flex; grid-column: 1 / -1; grid-row: 2; min-width: 0; margin-inline: -18px; background: var(--bg); padding: 11px 18px; }
   .mobile-title-field > input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: 20px; font-weight: 700; }
   .editor-ribbon-heading, .editor-actions, .editor-source-toolbar { display: none; }.editor-format-controls { margin-left: 0; }.editor-body [class*='contentEditable'] { padding: 20px 18px 120px; font-size: 14px; }
+  .editor-body [class*='contentEditable'] ul, .editor-body [class*='contentEditable'] ol { padding-inline-start: 20px; }
   .editor-body textarea { padding: 20px 18px 120px; font-size: 14px; }.editor-body .mdxeditor-toolbar { position: sticky; top: 0; bottom: auto; left: auto; right: auto; z-index: 4; height: 54px; min-height: 54px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 5px 12px; }
   .settings-top { height: 58px; padding: 0 18px; justify-content: space-between; }.settings-top .mobile-settings-back { display: inline; border: 0; padding: 0; color: var(--accent); background: transparent; font-size: 15px; letter-spacing: 0; }.settings-top span:nth-child(2) { margin: 0; color: var(--text-secondary); letter-spacing: .18em; }.settings-top span:nth-child(3), .settings-top button:last-child { display: none; }
   .settings-layout { flex-direction: column; }

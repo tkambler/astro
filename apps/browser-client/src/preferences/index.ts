@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { accountPreferences } from '@astronote/schemas'
 
 export type Theme = 'system' | 'light' | 'dark'
 export type Accent = 'cobalt' | 'sage' | 'amber' | 'rose'
@@ -24,6 +25,30 @@ const defaults: Preferences = {
 }
 const key = 'astronote-preferences-v1'
 
+function write(values: Preferences) {
+  localStorage.setItem(key, JSON.stringify(values))
+}
+
+async function putAccountPreferences(values: Preferences) {
+  try {
+    await fetch('/api/account/preferences', { method: 'PUT',
+      headers: { 'content-type': 'application/json', 'x-astronote-request': '1' }, body: JSON.stringify(values) })
+  } catch { /* The local copy remains authoritative while offline. */ }
+}
+
+let pendingAccountSave: Preferences | null = null
+let accountSaveInFlight: Promise<void> | null = null
+function saveToAccount(values: Preferences) {
+  pendingAccountSave = values
+  if (!accountSaveInFlight) accountSaveInFlight = (async () => {
+    while (pendingAccountSave) {
+      const next = pendingAccountSave
+      pendingAccountSave = null
+      await putAccountPreferences(next)
+    }
+  })().finally(() => { accountSaveInFlight = null })
+}
+
 function read(): Preferences {
   try {
     const saved = JSON.parse(localStorage.getItem(key) ?? '{}') as Partial<Preferences>
@@ -37,11 +62,30 @@ export const usePreferences = create<Store>(set => ({
     set(state => {
       const next = { ...state, ...patch }
       const { update: _update, ...values } = next
-      localStorage.setItem(key, JSON.stringify(values))
+      write(values)
+      saveToAccount(values)
       return next
     })
   },
 }))
+
+/** Loads roaming preferences after sign-in, seeding a new account from this device when needed. */
+export async function syncAccountPreferences() {
+  try {
+    const response = await fetch('/api/account/preferences', { cache: 'no-store' })
+    if (!response.ok) return
+    const result = await response.json() as { preferences?: unknown }
+    if (result.preferences === null) {
+      const { update: _update, ...local } = usePreferences.getState()
+      await putAccountPreferences(local)
+      return
+    }
+    const parsed = accountPreferences.safeParse(result.preferences)
+    if (!parsed.success) return
+    write(parsed.data)
+    usePreferences.setState(parsed.data)
+  } catch { /* Keep using the local preferences offline. */ }
+}
 
 const colors = {
   cobalt: { light: '#1f5fd0', dark: '#86b2ff', swatch: '#2f6ee0' },

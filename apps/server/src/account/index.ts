@@ -1,8 +1,9 @@
 import type { Express, Request, Response } from 'express'
 import { accountForSession, authenticateAccount, createSession, endSession,
   registerAccount, authenticationAttemptAllowed, rotateRecoveryCode, recoverAccount,
-  AccountAlreadyExistsError, RegistrationDisabledError, getSystemSettings } from '@astronote/domain'
-import { account, credentials, recoveryRequest } from '@astronote/schemas'
+  AccountAlreadyExistsError, RegistrationDisabledError, getSystemSettings,
+  getAccountPreferences, setAccountPreferences } from '@astronote/domain'
+import { account, accountPreferences, credentials, recoveryRequest } from '@astronote/schemas'
 
 const secure = process.env.NODE_ENV === 'production'
 const cookieName = secure ? '__Host-astronote' : 'astronote_dev'
@@ -89,6 +90,26 @@ export function mountAccountRoutes(app: Express) {
       if (!current) return
       return response.json({ recoveryCode: await rotateRecoveryCode(current.id) })
     } catch { return response.status(500).json({ error: 'Could not generate recovery code' }) }
+  })
+  app.get('/api/account/preferences', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      const saved = await getAccountPreferences(current.id)
+      if (saved === null) return response.json({ preferences: null })
+      const parsed = accountPreferences.safeParse(saved)
+      return response.json({ preferences: parsed.success ? parsed.data : null })
+    } catch { return response.status(500).json({ error: 'Could not load preferences' }) }
+  })
+  app.put('/api/account/preferences', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      const parsed = accountPreferences.safeParse(request.body)
+      if (!parsed.success) return response.status(400).json({ error: 'Invalid preferences' })
+      await setAccountPreferences(current.id, parsed.data)
+      return response.status(204).end()
+    } catch { return response.status(500).json({ error: 'Could not save preferences' }) }
   })
   app.post('/api/account/logout', async (request, response) => {
     try { await endSession(token(request)) }

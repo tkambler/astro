@@ -4,7 +4,8 @@ import { database } from '@astronote/db'
 import { accountForSession, authenticateAccount, createSession, endSession,
   authenticationAttemptAllowed, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
   recoverAccount, registerAccount, resetNotes, rotateRecoveryCode, getSystemSettings,
-  setAccountRegistration, listSystemUsers, RegistrationDisabledError, SystemAccessDeniedError } from '../src/index.js'
+  setAccountRegistration, listSystemUsers, RegistrationDisabledError, SystemAccessDeniedError,
+  getAccountPreferences, setAccountPreferences } from '../src/index.js'
 import { recoveryRequest } from '@astronote/schemas'
 
 after(async () => { await database().destroy() })
@@ -91,6 +92,20 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
 
   await endSession(token)
   assert.equal(await accountForSession(token), null)
+})
+
+test('account preferences persist independently for each account', async () => {
+  const first = await registerAccount({ email: `preferences-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const second = await registerAccount({ email: `preferences-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const preferences = { theme: 'dark' as const, accent: 'sage' as const, showPreviews: false,
+    showTags: true, previewLines: 3 as const, sort: 'title' as const, sortDirection: 'asc' as const,
+    textSize: 17 as const, lineLength: 840 as const, editorMode: 'source' as const, spellcheck: false }
+  assert.equal(await getAccountPreferences(first.id), null)
+  await setAccountPreferences(first.id, preferences)
+  assert.deepEqual(await getAccountPreferences(first.id), preferences)
+  assert.equal(await getAccountPreferences(second.id), null)
 })
 
 test('a batch applies independent notes atomically and preserves mutation order', async () => {

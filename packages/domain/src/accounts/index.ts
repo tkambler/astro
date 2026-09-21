@@ -1,6 +1,6 @@
 import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto'
 import { database } from '@astronote/db'
-import type { Account, Credentials, RecoveryRequest } from '@astronote/schemas'
+import type { Account, AccountPreferences, Credentials, RecoveryRequest } from '@astronote/schemas'
 
 const N = 1 << 15, r = 8, p = 3
 const maxmem = 64 * 1024 * 1024
@@ -128,4 +128,15 @@ export async function accountForSession(token: string): Promise<Account | null> 
 }
 export async function endSession(token: string) {
   if (/^[a-f0-9]{64}$/.test(token)) await database()('sessions').where({ token_hash: tokenHash(token) }).delete()
+}
+
+/** Account preferences roam across installations while each client retains its offline copy. */
+export async function getAccountPreferences(userId: string): Promise<unknown | null> {
+  const row = await database()('users').where({ id: userId }).first<{ preferences: unknown | null }>('preferences')
+  return row?.preferences ?? null
+}
+
+export async function setAccountPreferences(userId: string, preferences: AccountPreferences) {
+  const changed = await database()('users').where({ id: userId }).update({ preferences })
+  if (!changed) throw new Error('Account not found')
 }

@@ -4,7 +4,7 @@ import { MDXEditor, type MDXEditorMethods, UndoRedo, BoldItalicUnderlineToggles,
   listsPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, quotePlugin, frontmatterPlugin, tablePlugin } from '@mdxeditor/editor'
 import { useNotes } from '../notes/state'
 import { onNotesChanged, type LocalNote } from '../notes/local'
-import { applyPreferences, usePreferences } from '../preferences'
+import { applyPreferences, syncAccountPreferences, usePreferences } from '../preferences'
 import { Settings } from './Settings'
 import { AccountPanel } from './Account'
 import { SwipeableNoteRow } from './SwipeableNoteRow'
@@ -111,6 +111,7 @@ export function App() {
           }
         }
         await useAccount.getState().check()
+        if (useAccount.getState().status === 'signed-in') await syncAccountPreferences()
         await refresh()
         await sync()
       } catch {
@@ -335,7 +336,11 @@ export function App() {
         <button className="create-row" onClick={() => void createAndOpen(search)}>＋ Create Note {search && `“${search}”`}</button>
       </aside>
       <main className={`main-pane ${!mobileEditor && !settings && !accountPanel ? 'mobile-hidden' : ''}`}>
-        {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => { await refresh(); await sync() }} />
+        {accountPanel ? <AccountPanel onClose={() => setAccountPanel(false)} onAccountChanged={async () => {
+          await useNotes.getState().sync()
+          await useNotes.getState().refresh()
+          if (useAccount.getState().status === 'signed-in') await syncAccountPreferences()
+        }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />
           : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
