@@ -164,7 +164,7 @@ button { cursor: pointer; }
 }
 .editor-body .mdxeditor-toolbar { min-height: 56px; background: var(--bg-raised); border-bottom: 1px solid var(--line); border-radius: 0; padding: 5px 16px; position: sticky; top: 0; z-index: 2; overflow: visible; }
 [class*='toolbarNodeKindSelectContainer'] { z-index: 6; }
-.editor-body [class*='contentEditable'] { padding: 0 16px 28px; min-height: 50vh; font-family: var(--font-mono); font-size: var(--editor-size, 15px); line-height: 1.75; }
+.editor-body [class*='contentEditable'] { padding: 28px 16px; min-height: 50vh; font-family: var(--font-mono); font-size: var(--editor-size, 15px); line-height: 1.75; }
 .editor-body [class*='contentEditable'] a { color: var(--accent); }
 .editor-body [class*='contentEditable'] > * { max-width: var(--editor-length, 720px); }
 .editor-body [class*='contentEditable'] > :first-child, .editor-body [class*='contentEditable'] > :first-child > :first-child { margin-top: 0; padding-top: 0; }
