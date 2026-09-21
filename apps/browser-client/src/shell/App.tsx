@@ -236,7 +236,6 @@ export function App() {
     { id: 'delete', label: 'Delete Note', description: selected.title || 'Untitled',
       run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) setMobileEditor(false) }) } }] : []),
     { id: 'new', label: 'Create Note', run: () => { void createAndOpen('') } },
-    { id: 'search', label: 'Focus Search', run: () => { setSettings(false); setAccountPanel(false); input.current?.focus() } },
     { id: 'settings', label: 'Open Settings', run: () => { setSettings(true); setAccountPanel(false) } },
     { id: 'account', label: signedIn ? 'Open Account' : 'Sign In', run: () => { setAccountPanel(true); setSettings(false) } },
   ]
