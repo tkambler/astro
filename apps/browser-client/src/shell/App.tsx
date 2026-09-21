@@ -1,5 +1,5 @@
 import { Component, createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
-import { MDXEditor, type MDXEditorMethods, UndoRedo, BoldItalicUnderlineToggles, BlockTypeSelect,
+import { MDXEditor, type MDXEditorMethods, BoldItalicUnderlineToggles, BlockTypeSelect,
   ListsToggle, CreateLink, InsertCodeBlock, toolbarPlugin, headingsPlugin,
   listsPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, quotePlugin, frontmatterPlugin, tablePlugin } from '@mdxeditor/editor'
 import { useNotes } from '../notes/state'
@@ -15,7 +15,7 @@ import { hasInvalidFrontmatter, notePreview } from '../notes/content'
 import { watchRemoteChanges } from '../notes/sync'
 
 const plugins = [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(),
-  toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><UndoRedo /><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></div><EditorToolbarActions /></> })]
+  toolbarPlugin({ toolbarContents: () => <><EditorToolbarHeading /><div className="editor-format-controls"><BlockTypeSelect /><BoldItalicUnderlineToggles /><ListsToggle /><CreateLink /><InsertCodeBlock /></div><EditorToolbarActions /></> })]
 
 const EditorActionsContext = createContext<{
   mode: 'rich' | 'source'; invalidFrontmatter: boolean; heading: ReactNode;
