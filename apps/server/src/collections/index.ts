@@ -1,5 +1,5 @@
 import express, { type Express } from 'express'
-import { createCollection, listCollections } from '@astronote/domain'
+import { CollectionNotEmptyError, createCollection, deleteCollection, listCollections } from '@astronote/domain'
 import { collection, collectionList } from '@astronote/schemas'
 import { requireAccount } from '../account/index.js'
 
@@ -18,5 +18,16 @@ export function mountCollectionRoutes(app: Express) {
     if (!parsed.success) return response.status(400).json({ error: 'Invalid collection' })
     try { return response.status(201).json(collection.parse(await createCollection(current.id, parsed.data.name))) }
     catch { return response.status(500).json({ error: 'Could not create collection' }) }
+  })
+  app.delete('/api/collections/:name', async (request, response) => {
+    const current = await requireAccount(request, response)
+    if (!current) return
+    const parsed = collection.shape.name.safeParse(request.params.name)
+    if (!parsed.success) return response.status(400).json({ error: 'Invalid collection name' })
+    try { await deleteCollection(current.id, parsed.data); return response.status(204).end() }
+    catch (error) {
+      if (error instanceof CollectionNotEmptyError) return response.status(409).json({ error: error.message })
+      return response.status(500).json({ error: 'Could not delete collection' })
+    }
   })
 }

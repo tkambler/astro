@@ -2,7 +2,7 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { database } from '@astronote/db'
 import { accountForSession, authenticateAccount, createSession, endSession,
-  authenticationAttemptAllowed, createCollection, listCollections, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
+  authenticationAttemptAllowed, CollectionNotEmptyError, createCollection, deleteCollection, listCollections, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
   recoverAccount, registerAccount, resetNotes, rotateRecoveryCode, getSystemSettings,
   setAccountRegistration, listSystemUsers, RegistrationDisabledError, SystemAccessDeniedError,
   getAccountPreferences, setAccountPreferences } from '../src/index.js'
@@ -124,6 +124,22 @@ test('empty collections persist independently for each account and creation is i
   assert.deepEqual(await createCollection(first.id, 'projects'), { name: 'Projects' })
   assert.deepEqual((await listCollections(first.id)).collections, [{ name: 'Projects' }])
   assert.deepEqual((await listCollections(second.id)).collections, [])
+  await deleteCollection(first.id, 'projects')
+  assert.deepEqual((await listCollections(first.id)).collections, [])
+  await deleteCollection(first.id, 'projects')
+  await assert.rejects(deleteCollection(first.id, 'Notes'), CollectionNotEmptyError)
+})
+
+test('collections containing active or trashed notes cannot be deleted', async () => {
+  const owner = await registerAccount({ email: `collection-delete-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const noteId = crypto.randomUUID()
+  const note = { mutationId: crypto.randomUUID(), id: noteId, collection: 'Projects', baseRevision: 0,
+    title: 'Project note', body: '', tags: [], deleted: false }
+  await pushNotes(owner.id, [note])
+  await assert.rejects(deleteCollection(owner.id, 'Projects'), CollectionNotEmptyError)
+  await pushNotes(owner.id, [{ ...note, mutationId: crypto.randomUUID(), baseRevision: 1, deleted: true }])
+  await assert.rejects(deleteCollection(owner.id, 'Projects'), CollectionNotEmptyError)
 })
 
 test('note shares are account scoped, public, current, and revocable', async () => {

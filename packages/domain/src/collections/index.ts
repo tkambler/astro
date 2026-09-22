@@ -22,3 +22,17 @@ export async function createCollection(userId: string, name: string): Promise<Co
     return existing
   })
 }
+
+export class CollectionNotEmptyError extends Error {}
+
+/** Deletes an empty non-default collection and notifies other connected devices. */
+export async function deleteCollection(userId: string, name: string): Promise<void> {
+  if (key(name) === 'notes') throw new CollectionNotEmptyError('The Notes collection cannot be deleted')
+  await database().transaction(async tx => {
+    const referenced = await tx('notes').where({ user_id: userId, purged: false })
+      .whereRaw('LOWER(collection) = ?', [key(name)]).first('id')
+    if (referenced) throw new CollectionNotEmptyError('Move or delete this collection’s notes first')
+    const removed = await tx('collections').where({ user_id: userId, name_key: key(name) }).del()
+    if (removed) await publishNoteChange(tx, userId)
+  })
+}

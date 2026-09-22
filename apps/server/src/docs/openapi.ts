@@ -127,6 +127,12 @@ const paths: Record<string, Record<string, Operation>> = {
     post: write({ operationId: 'createCollection', tags: ['Collections'], summary: 'Create a collection', requestBody: body(ref('Collection')),
       responses: { 201: json('The created or existing collection', ref('Collection')), 400: error('Invalid collection'), ...signedIn, ...failed } }),
   },
+  '/api/collections/{name}': {
+    delete: write({ operationId: 'deleteCollection', tags: ['Collections'], summary: 'Delete an empty collection',
+      parameters: [{ name: 'name', in: 'path', required: true, schema: { type: 'string', minLength: 1, maxLength: 80 } }],
+      responses: { 204: noContent, 400: error('Invalid collection name'), 409: error('Collection is not empty or is the default'),
+        ...signedIn, ...failed } }),
+  },
   '/api/notes/state': {
     get: { operationId: 'getNoteState', tags: ['Notes'], summary: 'Current note generation',
       responses: { 200: json('The current note generation', generation), ...signedIn, ...failed } },

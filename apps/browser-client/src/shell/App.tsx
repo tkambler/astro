@@ -18,6 +18,7 @@ import { createShare, shareUrl } from '../shares'
 import type { NoteShare } from '@astronote/schemas'
 import { AttachmentShelf } from '../attachments/AttachmentShelf'
 import { embeddedImages } from '../attachments'
+import { shouldAdoptIncomingDraft } from '../notes/editing'
 
 function editorPlugins(images: ReturnType<typeof embeddedImages>) {
   return [headingsPlugin(), listsPlugin(), linkPlugin(), codeBlockPlugin(), codeMirrorPlugin({ codeBlockLanguages: { bash: 'Bash', sh: 'Shell', text: 'Plain text' } }), quotePlugin(), frontmatterPlugin(), tablePlugin(), thematicBreakPlugin(),
@@ -82,8 +83,9 @@ class RichEditorBoundary extends Component<{ children: ReactNode; onError: (erro
   render() { return this.state.failed ? null : this.props.children }
 }
 
-function CollectionPicker({ className, collections, active, onSelect, onCreate }: {
-  className: string; collections: string[]; active: string; onSelect(value: string): void; onCreate(value: string): boolean
+function CollectionPicker({ className, collections, active, onSelect, onCreate, onDelete }: {
+  className: string; collections: string[]; active: string; onSelect(value: string): void; onCreate(value: string): boolean;
+  onDelete(value: string): string | null
 }) {
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -94,6 +96,11 @@ function CollectionPicker({ className, collections, active, onSelect, onCreate }
     if (!onCreate(name)) return
     setName(''); setCreating(false); setOpen(false)
   }
+  const remove = (collection: string) => {
+    if (!confirm(`Delete the empty collection “${collection}”?`)) return
+    const error = onDelete(collection)
+    if (error) alert(error)
+  }
   return <div className={`collection-picker ${className}`}>
     <button type="button" className="collection-trigger" aria-haspopup="menu" aria-expanded={open}
       onClick={() => { setOpen(value => !value); setCreating(false); setName('') }}>
@@ -103,10 +110,14 @@ function CollectionPicker({ className, collections, active, onSelect, onCreate }
       <button type="button" className="collection-dismiss" tabIndex={-1} aria-label="Close collection selector" onClick={() => setOpen(false)} />
       <div className="collection-menu" role="menu" aria-label="Collections">
         <div className="collection-menu-label">COLLECTIONS</div>
-        {collections.map(collection => <button type="button" role="menuitemradio" aria-checked={collection === active}
-          key={collection} onClick={() => { onSelect(collection); setOpen(false) }}>
-          <span>{collection}</span>{collection === active && <span aria-hidden="true">✓</span>}
-        </button>)}
+        {collections.map(collection => <div className="collection-menu-row" role="none" key={collection}>
+          <button type="button" role="menuitemradio" aria-checked={collection === active}
+            onClick={() => { onSelect(collection); setOpen(false) }}>
+            <span>{collection}</span>{collection === active && <span aria-hidden="true">✓</span>}
+          </button>
+          {collection.toLocaleLowerCase() !== 'notes' && <button type="button" className="collection-delete" role="menuitem"
+            aria-label={`Delete ${collection} collection`} title={`Delete ${collection}`} onClick={() => remove(collection)}>×</button>}
+        </div>)}
         {creating ? <form className="collection-create" onSubmit={event => { event.preventDefault(); create() }}>
           <input ref={input} value={name} maxLength={80} aria-label="Collection name" placeholder="Collection name"
             onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setCreating(false) } }} />
@@ -134,7 +145,7 @@ function MoveNoteDialog({ note, collections, onMove, onClose }: { note: LocalNot
 
 export function App() {
   const { notes, allNotes, trash, tags, collections, activeCollection, tagFilter, search, selectedId, status, error, progress,
-    setSearch, setTagFilter, setActiveCollection, createCollection,
+    setSearch, setTagFilter, setActiveCollection, createCollection, deleteCollection,
     refresh, resort, select, create, save, move, setPinned, remove, restore, emptyTrash, reset, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
@@ -331,7 +342,7 @@ export function App() {
     <div className="landscape-blocker" role="status"><span aria-hidden="true">↻</span>Rotate your device to portrait</div>
     <div className="mobile-list-heading">
       <CollectionPicker className="mobile-collection-picker" collections={collections} active={activeCollection}
-        onSelect={setActiveCollection} onCreate={createCollection} />
+        onSelect={setActiveCollection} onCreate={createCollection} onDelete={deleteCollection} />
       <span className="mobile-note-count">{initialLoad === 'loading' ? '' : notes.length}</span>
       <button className={`mobile-connection ${connected ? 'connected' : ''}`}
         aria-label={connected ? 'Account Connected' : 'Account Disconnected'}
@@ -358,7 +369,7 @@ export function App() {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); openSelection() }
         }} />
       <CollectionPicker className="desktop-collection-picker" collections={collections} active={activeCollection}
-        onSelect={setActiveCollection} onCreate={createCollection} />
+        onSelect={setActiveCollection} onCreate={createCollection} onDelete={deleteCollection} />
       <kbd className="omnibar-shortcut">{focusShortcut}</kbd>
       {search && <button className="chip" onClick={() => void setSearch('')}>ESC to clear</button>}
       {tagFilter && <button className="chip" onClick={() => void setTagFilter(null)}>#{tagFilter} ×</button>}
@@ -498,24 +509,31 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onMove, onDelete, o
   useEffect(() => () => images.dispose(), [images])
   const linkTouch = useRef<{ link: HTMLAnchorElement; x: number; y: number } | null>(null)
   const editorInteracted = useRef(false)
+  const pendingSaves = useRef(0)
+  const appliedRevision = useRef(note.revision)
   const content = useRef({ title: note.title, body: note.body, tags: note.tags })
   useEffect(() => {
     if (note.tags.join('\0') !== content.current.tags.join('\0')) {
       content.current = { ...content.current, tags: note.tags }
     }
-    if (note.dirty) return
+    // A refresh can race an IndexedDB write and briefly return the previous clean record. Only a newer
+    // server revision may replace a live draft; reapplying same-revision Markdown rebuilds the editor and loses its selection.
+    if (!shouldAdoptIncomingDraft(note, content.current, appliedRevision.current, pendingSaves.current)) return
     if (note.title !== content.current.title) setTitle(note.title)
     if (note.body !== content.current.body) {
       editorInteracted.current = false
       setBody(note.body)
       editor.current?.setMarkdown(note.body)
     }
+    appliedRevision.current = note.revision
     content.current = { title: note.title, body: note.body, tags: note.tags }
   }, [note.revision, note.updatedAt, note.dirty, note.tags])
   const save = (nextTitle: string, nextBody: string, nextTags = content.current.tags) => {
     content.current = { title: nextTitle, body: nextBody, tags: nextTags }
+    pendingSaves.current++
     void onSave(note.id, nextTitle, nextBody, nextTags).then(() => setSaveError(null))
       .catch(error => setSaveError(error instanceof Error ? error.message : String(error)))
+      .finally(() => { pendingSaves.current-- })
   }
   const noteTitle = () => <input aria-label="Note title" maxLength={500} value={title} onChange={event => { setTitle(event.target.value); save(event.target.value, content.current.body) }} />
   const toolbarActions = {

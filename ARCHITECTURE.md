@@ -81,6 +81,8 @@ On revision conflict, the browser creates a local ` (conflict copy)` note contai
 
 Search and tag filtering run over the active workspace loaded from IndexedDB. Search covers titles, bodies, and tags, with title matches ranked first; the list can be sorted by modification time or title. Appearance, list, and editor preferences are stored on the device.
 
+Collection creation and deletion are also local-first catalog changes. Empty non-default collections can be deleted while offline and the removal is pushed on reconnect. A collection containing an active or trashed note must be emptied first; the default Notes collection cannot be deleted.
+
 Browser storage may be evicted by the operating system. The Files & sync screen can request persistent storage, and JSON backups remain useful for important notes. Existing server notes created before the account migration have no owner and are not returned by the authenticated API; export them from a browser that still has a local copy, then import after signing in.
 
 ## Import, export, and note content

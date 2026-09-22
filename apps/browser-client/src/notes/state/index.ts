@@ -7,7 +7,7 @@ import { usePreferences, type NoteSort, type SortDirection } from '../../prefere
 import { useAccount } from '../../account'
 import { removeCachedAttachment } from '../../attachments'
 import { activeCollection as savedActiveCollection, addCollection, defaultCollection, mergeCollections,
-  saveActiveCollection } from '../../collections'
+  removeCollection, saveActiveCollection } from '../../collections'
 
 let editSyncTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -41,7 +41,7 @@ type State = {
   status: 'loading' | 'local' | 'offline' | 'auth-required' | 'syncing' | 'synced' | 'sync-error' | 'storage-error'; error: string | null;
   progress: SyncProgress | null;
   setSearch(search: string): Promise<void>; setTagFilter(tag: string | null): Promise<void>; refresh(): Promise<void>;
-  setActiveCollection(collection: string): void; createCollection(name: string): boolean;
+  setActiveCollection(collection: string): void; createCollection(name: string): boolean; deleteCollection(name: string): string | null;
   resort(): void;
   select(id: string | null): void; create(title: string): Promise<boolean>;
   save(id: string, title: string, body: string, tags: string[]): Promise<void>;
@@ -80,6 +80,17 @@ export const useNotes = create<State>((set, get) => ({
     get().setActiveCollection(name)
     void get().sync()
     return true
+  },
+  deleteCollection(name) {
+    if ([...get().allNotes, ...get().trash].some(note => note.collection.toLocaleLowerCase() === name.toLocaleLowerCase()))
+      return 'Move or delete this collection’s notes first.'
+    const collections = removeCollection(get().collections, name)
+    if (!collections) return name.toLocaleLowerCase() === defaultCollection.toLocaleLowerCase()
+      ? 'The Notes collection cannot be deleted.' : 'Collection not found.'
+    set({ collections })
+    if (get().activeCollection.toLocaleLowerCase() === name.toLocaleLowerCase()) get().setActiveCollection(defaultCollection)
+    void get().sync()
+    return null
   },
   resort() { set(state => ({ notes: visibleNotes(state.allNotes, state.activeCollection, state.search, state.tagFilter) })) },
   async refresh() {
