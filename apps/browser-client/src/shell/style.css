@@ -64,12 +64,12 @@ button { cursor: pointer; }
 .results { flex: 1; overflow-y: auto; }
 :root.command-palette-open .results { overflow-y: hidden; }
 :root.tag-manager-open .editor-body { overflow-y: hidden; }
-.results::-webkit-scrollbar { width: 9px; }
+.results::-webkit-scrollbar { width: 6px; }
 .results::-webkit-scrollbar-track { background: transparent; }
-.results::-webkit-scrollbar-thumb { border: 2px solid var(--bg-chrome); border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 42%, var(--bg-chrome)); }
-.results::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-muted) 68%, var(--bg-chrome)); }
+.results::-webkit-scrollbar-thumb { border: 1px solid transparent; border-radius: 999px; background: color-mix(in srgb, var(--text-muted) 28%, transparent); background-clip: padding-box; }
+.results::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text-muted) 55%, transparent); background-clip: padding-box; }
 @supports (-moz-appearance: none) {
-  .results { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-muted) 42%, var(--bg-chrome)) transparent; }
+  .results { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text-muted) 28%, transparent) transparent; }
 }
 .result { display: flex; width: 100%; flex-direction: column; gap: 6px; text-align: left; padding: 11px 20px; background: transparent; border: 0; color: var(--text-body); }
 .result-delete { display: none; }
