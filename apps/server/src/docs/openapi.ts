@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { account, accountPreferences, credentials, note, noteMutation, noteShare, publicNote, pullResult,
+import { account, accountPreferences, apiKey, apiKeyName, createdApiKey, credentials, note, noteMutation, noteShare, publicNote, pullResult,
   passwordConfirmation, pushRequest, pushResult, recoveryRequest, shareId, systemSettings, systemUser, attachment, attachmentList } from '@astronote/schemas'
 
 type Schema = Record<string, unknown>
@@ -10,6 +10,7 @@ const requestModels = z.registry<{ id: string }>()
 requestModels.add(credentials, { id: 'Credentials' })
 requestModels.add(recoveryRequest, { id: 'RecoveryRequest' })
 requestModels.add(passwordConfirmation, { id: 'PasswordConfirmation' })
+requestModels.add(apiKeyName, { id: 'ApiKeyName' })
 requestModels.add(noteMutation, { id: 'NoteMutation' })
 requestModels.add(pushRequest, { id: 'PushRequest' })
 const responseModels = z.registry<{ id: string }>()
@@ -20,6 +21,8 @@ responseModels.add(noteShare, { id: 'NoteShare' })
 responseModels.add(publicNote, { id: 'PublicNote' })
 responseModels.add(account, { id: 'Account' })
 responseModels.add(accountPreferences, { id: 'AccountPreferences' })
+responseModels.add(apiKey, { id: 'ApiKey' })
+responseModels.add(createdApiKey, { id: 'CreatedApiKey' })
 responseModels.add(systemSettings, { id: 'SystemSettings' })
 responseModels.add(systemUser, { id: 'SystemUser' })
 responseModels.add(attachment, { id: 'Attachment' })
@@ -95,6 +98,17 @@ const paths: Record<string, Record<string, Operation>> = {
         ...signedIn, ...failed } },
     put: write({ operationId: 'setPreferences', tags: ['Account'], summary: 'Save synced preferences', requestBody: body(ref('AccountPreferences')),
       responses: { 204: noContent, 400: error('Invalid preferences'), ...signedIn, ...failed } }),
+  },
+  '/api/account/api-keys': {
+    get: { operationId: 'listApiKeys', tags: ['Account'], summary: 'List API keys',
+      responses: { 200: json('API keys for the account', object({ apiKeys: { type: 'array', items: ref('ApiKey') } })), ...signedIn, ...failed } },
+    post: write({ operationId: 'createApiKey', tags: ['Account'], summary: 'Create an API key', requestBody: body(ref('ApiKeyName')),
+      responses: { 201: json('Created API key; the plaintext key is shown only in this response', ref('CreatedApiKey')),
+        400: error('Invalid name'), 409: error('API key limit reached'), ...signedIn, ...failed } }),
+  },
+  '/api/account/api-keys/{id}': {
+    delete: write({ operationId: 'deleteApiKey', tags: ['Account'], summary: 'Delete an API key', parameters: [parameter('ApiKeyId')],
+      responses: { 204: noContent, 400: error('Invalid API key ID'), 404: error('API key not found'), ...signedIn, ...failed } }),
   },
   '/api/account/logout': {
     post: write({ operationId: 'logout', tags: ['Account'], summary: 'Sign out', ...anonymous, responses: { 204: noContent } }),
@@ -194,16 +208,19 @@ export function createOpenApiDocument(options: { sessionCookie: string }) {
         + 'register, login, and recover endpoints. Every non-GET request must send `x-astronote-request: 1`.' },
     servers: [{ url: '/' }],
     tags: [
-      { name: 'Account', description: 'Registration, sessions, recovery, and synced preferences' },
+      { name: 'Account', description: 'Registration, sessions, recovery, API keys, and synced preferences' },
       { name: 'Notes', description: 'Offline-first note sync: pull changes by cursor, push batched mutations' },
       { name: 'Attachments', description: 'Connected file resources owned by notes' },
       { name: 'Shares', description: 'Public read-only links to individual notes' },
       { name: 'System', description: 'Health and administrator settings' },
     ],
-    security: [{ session: [] }],
+    security: [{ session: [] }, { apiKey: [] }],
     paths,
     components: {
-      securitySchemes: { session: { type: 'apiKey', in: 'cookie', name: options.sessionCookie } },
+      securitySchemes: {
+        session: { type: 'apiKey', in: 'cookie', name: options.sessionCookie },
+        apiKey: { type: 'http', scheme: 'bearer', description: 'An API key beginning with `astronote_`.' },
+      },
       parameters: {
         AstronoteRequest: { name: 'x-astronote-request', in: 'header', required: true,
           description: 'Required on every non-GET request (CSRF protection).', schema: { type: 'string', enum: ['1'], default: '1' } },
@@ -213,6 +230,7 @@ export function createOpenApiDocument(options: { sessionCookie: string }) {
         NoteId: { name: 'noteId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
         AttachmentId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
         SharedAttachmentId: { name: 'attachmentId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        ApiKeyId: { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
       },
       schemas: {
         ...components(requestModels, 'input'),

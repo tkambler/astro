@@ -4,6 +4,8 @@ Astronote runs at https://notes.snapcrunch.io. The repository checkout on `nuc` 
 
 ## Release
 
+NEVER DEPLOY TO THE NUC UNLESS YOU ARE EXPLICITLY INSTRUCTED TO DO SO.
+
 1. Finish and test the intended changes locally. If they include a database migration, back up the `astronote_postgres_data` and `astronote_attachment_data` volumes before deploying.
 2. Commit only the intended files and push `main` to `origin`.
 3. Pull and build on `nuc`:

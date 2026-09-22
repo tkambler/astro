@@ -2,6 +2,8 @@ import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } fr
 import { database } from '@astronote/db'
 import type { Account, AccountPreferences, Credentials, RecoveryRequest } from '@astronote/schemas'
 
+export { listApiKeys, createApiKey, deleteApiKey, accountForApiKey, ApiKeyLimitError } from './api-keys.js'
+
 const N = 1 << 15, r = 8, p = 3
 const maxmem = 64 * 1024 * 1024
 const sessionLifetimeMs = 30 * 24 * 60 * 60 * 1000

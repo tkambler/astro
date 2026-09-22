@@ -13,6 +13,7 @@ import * as accountPreferences from './migrations/202609200011_account_preferenc
 import * as noteShares from './migrations/202609200012_note_shares.js'
 import * as attachments from './migrations/202609200013_attachments.js'
 import * as shareLimits from './migrations/202609200014_share_limits.js'
+import * as apiKeys from './migrations/202609200015_api_keys.js'
 
 const migrations = { '202609200001_notes': notes, '202609200002_accounts': accounts,
   '202609200003_tags': tags, '202609200004_authentication_limits': authenticationLimits,
@@ -22,7 +23,8 @@ const migrations = { '202609200001_notes': notes, '202609200002_accounts': accou
   '202609200011_account_preferences': accountPreferences,
   '202609200012_note_shares': noteShares,
   '202609200013_attachments': attachments,
-  '202609200014_share_limits': shareLimits }
+  '202609200014_share_limits': shareLimits,
+  '202609200015_api_keys': apiKeys }
 
 const db = database()
 try {

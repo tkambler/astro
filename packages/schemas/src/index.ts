@@ -89,6 +89,17 @@ export const passwordConfirmation = z.object({ password: z.string().min(12).max(
 export type PasswordConfirmation = z.infer<typeof passwordConfirmation>
 export const account = z.object({ id: z.uuid(), email: z.email(), admin: z.boolean() })
 export type Account = z.infer<typeof account>
+export const apiKeyName = z.object({ name: z.string().trim().min(1).max(80) })
+export type ApiKeyName = z.infer<typeof apiKeyName>
+export const apiKey = z.object({
+  id: z.uuid(),
+  name: z.string().min(1).max(80),
+  createdAt: z.iso.datetime(),
+  lastUsedAt: z.iso.datetime().nullable(),
+})
+export type ApiKey = z.infer<typeof apiKey>
+export const createdApiKey = apiKey.extend({ key: z.string().regex(/^astronote_[a-f0-9]{64}$/) })
+export type CreatedApiKey = z.infer<typeof createdApiKey>
 export const accountPreferences = z.object({
   theme: z.enum(['system', 'light', 'dark']),
   accent: z.enum(['cobalt', 'sage', 'amber', 'rose']),

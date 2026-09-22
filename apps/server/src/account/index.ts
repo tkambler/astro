@@ -2,8 +2,9 @@ import type { Express, Request, Response } from 'express'
 import { accountForSession, authenticateAccount, createSession, endSession,
   registerAccount, authenticationAttemptAllowed, rotateRecoveryCode, recoverAccount,
   clearAuthenticationAttempts, AccountAlreadyExistsError, RegistrationDisabledError, AuthenticationBusyError, getSystemSettings,
-  getAccountPreferences, setAccountPreferences } from '@astronote/domain'
-import { account, accountPreferences, credentials, passwordConfirmation, recoveryRequest } from '@astronote/schemas'
+  getAccountPreferences, setAccountPreferences, accountForApiKey, listApiKeys, createApiKey, deleteApiKey, ApiKeyLimitError } from '@astronote/domain'
+import { account, accountPreferences, apiKeyName, credentials, passwordConfirmation, recoveryRequest } from '@astronote/schemas'
+import { z } from 'zod'
 
 const secure = process.env.NODE_ENV === 'production'
 export const sessionCookieName = secure ? '__Host-astronote' : 'astronote_dev'
@@ -39,7 +40,9 @@ function clearCookie(response: Response) {
   response.setHeader('Set-Cookie', `${sessionCookieName}=; Max-Age=0; ${cookieAttributes}`)
 }
 
-export function currentAccount(request: { headers: { cookie?: string } }) {
+export function currentAccount(request: { headers: { cookie?: string; authorization?: string } }) {
+  const authorization = request.headers.authorization
+  if (authorization?.startsWith('Bearer ')) return accountForApiKey(authorization.slice(7))
   return accountForSession(token(request))
 }
 
@@ -152,6 +155,35 @@ export function mountAccountRoutes(app: Express) {
       await setAccountPreferences(current.id, parsed.data)
       return response.status(204).end()
     } catch { return response.status(500).json({ error: 'Could not save preferences' }) }
+  })
+  app.get('/api/account/api-keys', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      return response.json({ apiKeys: await listApiKeys(current.id) })
+    } catch { return response.status(500).json({ error: 'Could not load API keys' }) }
+  })
+  app.post('/api/account/api-keys', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      const parsed = apiKeyName.safeParse(request.body)
+      if (!parsed.success) return response.status(400).json({ error: 'Enter a name between 1 and 80 characters' })
+      return response.status(201).json(await createApiKey(current.id, parsed.data.name))
+    } catch (error) {
+      if (error instanceof ApiKeyLimitError) return response.status(409).json({ error: 'An account may have at most 20 API keys' })
+      return response.status(500).json({ error: 'Could not create API key' })
+    }
+  })
+  app.delete('/api/account/api-keys/:id', async (request, response) => {
+    try {
+      const current = await requireAccount(request, response)
+      if (!current) return
+      const id = z.uuid().safeParse(request.params.id)
+      if (!id.success) return response.status(400).json({ error: 'Invalid API key ID' })
+      if (!await deleteApiKey(current.id, id.data)) return response.status(404).json({ error: 'API key not found' })
+      return response.status(204).end()
+    } catch { return response.status(500).json({ error: 'Could not delete API key' }) }
   })
   app.post('/api/account/logout', async (request, response) => {
     try { await endSession(token(request)) }

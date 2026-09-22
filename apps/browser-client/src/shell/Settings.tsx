@@ -9,9 +9,11 @@ import type { LocalNote } from '../notes/local'
 import { systemSettings as systemSettingsSchema, systemUser as systemUserSchema,
   type NoteShare, type SystemSettings, type SystemUser } from '@astronote/schemas'
 import { listShares, revokeShare, shareUrl } from '../shares'
+import { createApiKey, deleteApiKey, listApiKeys } from '../account/api-keys'
+import type { ApiKey, CreatedApiKey } from '@astronote/schemas'
 
-type Section = 'Appearance' | 'Editor' | 'Files & Sync' | 'Shared Notes' | 'Trash' | 'System' | 'Shortcuts' | 'About'
-const sections: Section[] = ['Appearance', 'Editor', 'Files & Sync', 'Shared Notes', 'Trash', 'System', 'Shortcuts', 'About']
+type Section = 'Appearance' | 'Editor' | 'Files & Sync' | 'Shared Notes' | 'API Keys' | 'Trash' | 'System' | 'Shortcuts' | 'About'
+const sections: Section[] = ['Appearance', 'Editor', 'Files & Sync', 'Shared Notes', 'API Keys', 'Trash', 'System', 'Shortcuts', 'About']
 
 export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset, trash, onRestore, onEmptyTrash }: {
   mobileLayout: boolean; onClose(): void; onNotesImported(): Promise<void>; onNotesReset(): Promise<void>;
@@ -34,6 +36,11 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
   const [shares, setShares] = useState<NoteShare[] | null>(null)
   const [sharesBusy, setSharesBusy] = useState('')
   const [sharesError, setSharesError] = useState('')
+  const [apiKeys, setApiKeys] = useState<ApiKey[] | null>(null)
+  const [apiKeyName, setApiKeyName] = useState('')
+  const [createdKey, setCreatedKey] = useState<CreatedApiKey | null>(null)
+  const [apiKeyBusy, setApiKeyBusy] = useState('')
+  const [apiKeyError, setApiKeyError] = useState('')
   const account = useAccount(state => state.account)
   const accountStatus = useAccount(state => state.status)
   const hasAccountNotes = activeAccountId() !== null
@@ -47,6 +54,14 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
     setSharesError('')
     void listShares().then(value => { if (active) setShares(value) })
       .catch(error => { if (active) setSharesError(error instanceof Error ? error.message : String(error)) })
+    return () => { active = false }
+  }, [section, accountStatus, account?.id])
+  useEffect(() => {
+    if (section !== 'API Keys' || accountStatus !== 'signed-in') return
+    let active = true
+    setApiKeyError('')
+    void listApiKeys().then(value => { if (active) setApiKeys(value) })
+      .catch(error => { if (active) setApiKeyError(error instanceof Error ? error.message : String(error)) })
     return () => { active = false }
   }, [section, accountStatus, account?.id])
   useEffect(() => {
@@ -112,6 +127,17 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
       void deviceStorage().then(setStorage).catch(() => undefined)
     } catch (error) { setResetError(error instanceof Error ? error.message : String(error)) }
     finally { setResetting(false) }
+  }
+  const handleCreateApiKey = async () => {
+    const name = apiKeyName.trim()
+    if (!name) return
+    setApiKeyBusy('create'); setApiKeyError(''); setCreatedKey(null)
+    try {
+      const created = await createApiKey(name)
+      setApiKeys(current => [created, ...(current ?? [])])
+      setApiKeyName(''); setCreatedKey(created)
+    } catch (error) { setApiKeyError(error instanceof Error ? error.message : String(error)) }
+    finally { setApiKeyBusy('') }
   }
   return <div className="settings-view">
     <div className="settings-top"><button className="mobile-settings-back" onClick={() => { if (mobileLayout && section) setSection(null); else onClose() }}>{mobileLayout && section ? '‹ Settings' : '‹ Notes'}</button><span>{mobileLayout && section ? section.toUpperCase() : 'SETTINGS'}</span><span>changes save as you make them</span><button onClick={onClose}>ESC to close</button></div>
@@ -192,6 +218,36 @@ export function Settings({ mobileLayout, onClose, onNotesImported, onNotesReset,
                 }}>{sharesBusy === shared.id ? 'Revoking…' : 'Revoke'}</Button></div>
             </div>)}</div> : !sharesError && <p>No notes are currently shared.</p>}
           {sharesError && <p className="settings-feedback" role="alert">{sharesError}</p>}
+        </section>
+        <section className={`settings-section ${section === 'API Keys' ? 'active' : ''}`}>
+          <h2>API KEYS</h2><p>Use API keys to access Astronote from scripts and other tools. Each key has the same access as your account.</p>
+          {accountStatus !== 'signed-in' ? <p>Sign in and connect to manage API keys.</p> : <>
+            <form className="api-key-create" onSubmit={event => { event.preventDefault(); void handleCreateApiKey() }}>
+              <label htmlFor="api-key-name">Key name</label>
+              <div><input id="api-key-name" maxLength={80} placeholder="For example, command-line scripts" value={apiKeyName}
+                onChange={event => setApiKeyName(event.target.value)} />
+                <Button type="submit" disabled={!apiKeyName.trim() || apiKeyBusy === 'create'}>{apiKeyBusy === 'create' ? 'Generating…' : 'Generate Key'}</Button></div>
+            </form>
+            {createdKey && <div className="api-key-reveal" role="status">
+              <div><strong>Copy this key now</strong><small>It will not be shown again.</small></div>
+              <code>{createdKey.key}</code>
+              <div className="api-key-reveal-actions"><Button onClick={() => { void navigator.clipboard.writeText(createdKey.key) }}>Copy Key</Button>
+                <Button onClick={() => setCreatedKey(null)}>Done</Button></div>
+            </div>}
+            {apiKeys === null && !apiKeyError ? <p>Loading API Keys…</p> : apiKeys?.length ? <div className="api-key-list">
+              {apiKeys.map(key => <div className="api-key-row" key={key.id}><span><strong>{key.name}</strong>
+                <small>Created {new Date(key.createdAt).toLocaleDateString()}{key.lastUsedAt ? ` · Last used ${new Date(key.lastUsedAt).toLocaleDateString()}` : ' · Never used'}</small></span>
+                <Button className="danger-action" disabled={apiKeyBusy === key.id} onClick={() => {
+                  if (!confirm(`Delete the API key “${key.name}”? Any tools using it will immediately lose access.`)) return
+                  setApiKeyBusy(key.id); setApiKeyError('')
+                  void deleteApiKey(key.id).then(() => {
+                    setApiKeys(current => current?.filter(item => item.id !== key.id) ?? [])
+                    if (createdKey?.id === key.id) setCreatedKey(null)
+                  }).catch(error => setApiKeyError(error instanceof Error ? error.message : String(error))).finally(() => setApiKeyBusy(''))
+                }}>{apiKeyBusy === key.id ? 'Deleting…' : 'Delete'}</Button></div>)}
+            </div> : !apiKeyError && <p className="api-key-empty">No API keys yet.</p>}
+            {apiKeyError && <p className="settings-feedback" role="alert">{apiKeyError}</p>}
+          </>}
         </section>
         <section className={`settings-section ${section === 'Trash' ? 'active' : ''}`}>
           <h2>TRASH</h2><p>Deleted notes stay here until you restore them or empty the trash.</p>
