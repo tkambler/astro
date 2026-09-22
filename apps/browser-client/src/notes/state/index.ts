@@ -53,7 +53,7 @@ type State = {
 
 export const useNotes = create<State>((set, get) => ({
   notes: [], allNotes: [], trash: [], tags: [], collections: [defaultCollection], activeCollection: defaultCollection,
-  tagFilter: null, search: '', selectedId: null, selectionCleared: false,
+  tagFilter: null, search: '', selectedId: null, selectionCleared: true,
   status: 'loading', error: null, progress: null,
   async setSearch(search) { set(state => {
     const notes = visibleNotes(state.allNotes, state.activeCollection, search, state.tagFilter)
