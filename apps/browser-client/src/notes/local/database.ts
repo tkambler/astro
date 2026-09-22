@@ -75,6 +75,16 @@ async function legacyDatabaseExists() {
   })
 }
 
+function deleteLegacyDatabase() {
+  return new Promise<void>(resolve => {
+    const deletion = indexedDB.deleteDatabase(legacyDatabaseName)
+    deletion.onsuccess = () => resolve()
+    deletion.onerror = () => resolve()
+    // An older app window can keep the database open. Do not delay startup; its next launch will retry cleanup.
+    deletion.onblocked = () => resolve()
+  })
+}
+
 export type LegacyNote = { id: string; title: string; body: string; pinned: boolean; purged: boolean; revision: number;
   created_at: string | null; updated_at: string; deleted_at: string | null; dirty: boolean;
   mutation_id: string | null; base_revision: number; owner_id: string; tags: string[];
@@ -102,7 +112,7 @@ async function migrateLegacyDatabase(database: IDBDatabase) {
   const check = database.transaction('meta', 'readonly')
   const migrated = await request<MetaRecord | undefined>(check.objectStore('meta').get(migrationKey))
   await completed(check)
-  if (migrated) return
+  if (migrated) { await deleteLegacyDatabase(); return }
 
   if (!await legacyDatabaseExists()) {
     const transaction = database.transaction('meta', 'readwrite')
@@ -139,6 +149,7 @@ async function migrateLegacyDatabase(database: IDBDatabase) {
     }
     transaction.objectStore('meta').put({ key: migrationKey, value: new Date().toISOString() } satisfies MetaRecord)
     await completed(transaction)
+    await deleteLegacyDatabase()
   }
 }
 
