@@ -1,4 +1,4 @@
-import { Component, createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Component, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MDXEditor, type MDXEditorMethods, BoldItalicUnderlineToggles, BlockTypeSelect,
   ListsToggle, CreateLink, InsertCodeBlock, InsertImage, toolbarPlugin, headingsPlugin,
   listsPlugin, linkPlugin, codeBlockPlugin, codeMirrorPlugin, quotePlugin, frontmatterPlugin, tablePlugin,
@@ -169,9 +169,21 @@ export function App() {
   const noteMenuRef = useRef<HTMLDivElement>(null)
   const loadAttempt = useRef(0)
   const loadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mobileListScroll = useRef<{ top: number; restore: boolean }>({ top: 0, restore: false })
   const selected = notes.find(note => note.id === selectedId) ?? null
+  const showMobileEditor = () => {
+    if (mobileLayout && !mobileEditor) mobileListScroll.current = { top: window.scrollY, restore: true }
+    setMobileEditor(true)
+  }
+  const returnToMobileList = () => setMobileEditor(false)
+  useLayoutEffect(() => {
+    if (!mobileLayout || mobileEditor || !mobileListScroll.current.restore) return
+    const { top } = mobileListScroll.current
+    mobileListScroll.current.restore = false
+    window.scrollTo(0, top)
+  }, [mobileLayout, mobileEditor])
   const createAndOpen = async (title: string) => {
-    if (await create(title)) setMobileEditor(true)
+    if (await create(title)) showMobileEditor()
   }
   const loadNotes = () => {
     const attempt = ++loadAttempt.current
@@ -307,10 +319,10 @@ export function App() {
       if (match) {
         if (tagFilter) void setTagFilter(null)
         select(match.id)
-        setMobileEditor(true)
+        showMobileEditor()
         input.current?.blur()
       } else void createAndOpen(title)
-    } else if (selected) { setMobileEditor(true); input.current?.blur() }
+    } else if (selected) { showMobileEditor(); input.current?.blur() }
   }
   const mobileDetail = mobileEditor || settings || accountPanel
   const signedIn = !!account && status !== 'auth-required'
@@ -333,7 +345,7 @@ export function App() {
     { id: 'move', label: 'Move to Collection', description: selected.collection, run: () => setMoveNoteId(selected.id) },
     { id: 'share', label: 'Share Note', description: selected.title || 'Untitled', run: () => { void shareSelected(selected) } },
     { id: 'delete', label: 'Delete Note', description: selected.title || 'Untitled',
-      run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) setMobileEditor(false) }) } }] : []),
+      run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) returnToMobileList() }) } }] : []),
     { id: 'new', label: 'Create Note', run: () => { void createAndOpen('') } },
     { id: 'settings', label: 'Open Settings', run: () => { setSettings(true); setAccountPanel(false) } },
     { id: 'account', label: signedIn ? 'Open Account' : 'Sign In', run: () => { setAccountPanel(true); setSettings(false) } },
@@ -420,8 +432,8 @@ export function App() {
             }}
             onClick={event => {
               setOpenSwipeId(null)
-              if (event.metaKey && selectedId === note.id) { select(null); setMobileEditor(false) }
-              else { select(note.id); setMobileEditor(true) }
+              if (event.metaKey && selectedId === note.id) { select(null); returnToMobileList() }
+              else { select(note.id); showMobileEditor() }
               setSettings(false)
             }}>
             <span className="result-line"><strong>{note.title || 'Untitled'}</strong>{note.pinned && <svg className="result-pin" role="img" aria-label="Pinned" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5-3 1-4 4v4l-2 2-3-5-5-3 2-2h4l4-4zM9 15l-6 6" /></svg>}{account && status !== 'auth-required' && note.dirty && <svg className="result-sync" role="img" aria-label="Sync pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M7 18a5 5 0 0 1-.5-9.97A6 6 0 0 1 18 9.5a4.5 4.5 0 0 1-.5 8.5" /><path d="M12 20V12m-3 3 3-3 3 3" /></svg>}</span>
@@ -447,7 +459,7 @@ export function App() {
         }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />
-          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} connected={connected} onSave={save} onMove={() => setMoveNoteId(selected.id)} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
+          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} connected={connected} onSave={save} onMove={() => setMoveNoteId(selected.id)} onDelete={async id => { if (await remove(id)) returnToMobileList() }} onBack={returnToMobileList} onOpenCommandPalette={() => setPaletteOpen(true)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
@@ -470,7 +482,7 @@ export function App() {
       const note = allNotes.find(item => item.id === moveNoteId)!
       return <MoveNoteDialog note={note} collections={collections} onClose={() => setMoveNoteId(null)} onMove={collection => {
         setMoveNoteId(null)
-        void move(note.id, collection).then(moved => { if (moved && mobileLayout) setMobileEditor(false) })
+        void move(note.id, collection).then(moved => { if (moved && mobileLayout) returnToMobileList() })
       }} />
     })()}
     {noteMenu && <div ref={noteMenuRef} className="sidebar-note-menu" role="menu" aria-label="Note Actions"
