@@ -349,7 +349,7 @@ button { cursor: pointer; }
   html, body, #root { background: var(--bg-chrome); }
   html, body { min-height: 100%; }
   #root { height: auto; min-height: 100%; }
-  .app.mobile-detail { position: fixed; inset: 0; height: auto; overflow: hidden; }
+  .app.mobile-detail { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; overflow: hidden; }
   .mobile-list .mobile-list-heading, .mobile-list .omnibar, .mobile-list .sidebar { -webkit-user-select: none; user-select: none; }
   .app.mobile-list { display: block; height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; background: var(--bg-chrome); }
   .mobile-list .workspace, .mobile-list .sidebar { display: block; min-height: 0; }

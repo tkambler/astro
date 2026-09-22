@@ -165,6 +165,19 @@ For the current document-scrolling mobile layout, verify:
 - Opening a note from the middle of the list and pressing **Back to notes**
   restores the previous `window.scrollY`.
 
+Do not stop at the list. Repeat the viewport-height cycle for every
+`mobile-detail` view and verify that each outer view ends at
+`window.innerHeight`:
+
+- Note editor, including `.attachment-dock`.
+- Settings section list and an open settings section.
+- Account panel.
+- Open attachment sheet and its bottom sheet panel.
+
+The mobile detail shell uses the stable large viewport (`100lvh`) so an
+installed iOS app does not retain the shortened dynamic viewport after browser
+chrome or the software keyboard changes size.
+
 The regression fixed in commit `5ee92ba` came from making `.results` a nested
 mobile scroll container inside a fixed, dynamic-viewport-height application
 shell. The durable fix was to let the document own mobile-list scrolling and
@@ -211,4 +224,3 @@ curl -sS -X DELETE \
 ```
 
 Then stop the host-side `safaridriver` with **Control-C** in its Terminal.
-
