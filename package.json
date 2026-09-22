@@ -9,7 +9,7 @@
     "dev": "sh ./scripts/dev.sh",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
-    "test": "turbo typecheck && node --test apps/browser-client/test/*.test.ts && node --import tsx --test apps/server/test/*.test.ts",
+    "test": "turbo typecheck && node --import tsx --test apps/browser-client/test/*.test.ts && node --import tsx --test apps/server/test/*.test.ts",
     "test:integration": "npm run migrate -w @astronote/db && npm run test:integration -w @astronote/domain"
   },
   "devDependencies": {"turbo": "^2.11.2", "typescript": "^5.9.3"}

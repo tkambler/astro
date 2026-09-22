@@ -1,89 +1,106 @@
 import type { Note, NoteMutation } from '@astronote/schemas'
-import { announceChange, columns, db, owner, ready, type Row } from './database'
+import { announceChange, completed, ownedKey, owner, ready, request, type AttachmentRecord,
+  type NoteRecord, type SyncRecord } from './database'
 import { newIdentifier } from './identifiers'
 
+function serverRecord(note: Note, ownerId: string): NoteRecord {
+  return { ...note, key: ownedKey(ownerId, note.id), ownerId, dirty: false, mutationId: null,
+    baseRevision: note.revision, syncedBody: note.body, syncedTitle: note.title }
+}
+
 export async function pendingMutations(ownerId = owner()): Promise<NoteMutation[]> {
-  await ready()
-  const result = await db.query<Row>(`SELECT ${columns} FROM notes WHERE dirty = true AND owner_id=$1 ORDER BY updated_at ASC`, [ownerId])
-  return result.rows.map(row => ({ mutationId: row.mutation_id!, id: row.id,
-    baseRevision: row.base_revision, title: row.title, body: row.body, tags: row.tags, pinned: row.pinned, purged: row.purged,
-    createdAt: row.created_at ?? row.updated_at, updatedAt: row.updated_at, deleted: !!row.deleted_at }))
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readonly')
+  const notes = await request<NoteRecord[]>(transaction.objectStore('notes').index('ownerId').getAll(ownerId))
+  await completed(transaction)
+  return notes.filter(note => note.dirty).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).map(note => ({
+    mutationId: note.mutationId!, id: note.id, baseRevision: note.baseRevision, title: note.title, body: note.body,
+    tags: note.tags, pinned: note.pinned, purged: note.purged, createdAt: note.createdAt,
+    updatedAt: note.updatedAt, deleted: !!note.deletedAt,
+  }))
 }
+
 export async function acceptPush(mutation: NoteMutation, serverNote: Note, ownerId = owner()) {
-  await ready()
-  // A newer local edit keeps its own mutation ID, while its base advances to the acknowledged revision.
-  await db.query(`UPDATE notes SET revision=$1,base_revision=$1,
-    synced_body=$6,synced_title=$7,
-    dirty=CASE WHEN mutation_id=$2 THEN false ELSE dirty END,
-    mutation_id=CASE WHEN mutation_id=$2 THEN NULL ELSE mutation_id END,
-    updated_at=CASE WHEN mutation_id=$2 THEN $3 ELSE updated_at END
-    WHERE id=$4 AND owner_id=$5`, [serverNote.revision, mutation.mutationId, serverNote.updatedAt, mutation.id, ownerId, mutation.body, mutation.title])
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  const current = await request<NoteRecord | undefined>(store.get(ownedKey(ownerId, mutation.id)))
+  if (current) {
+    const unchanged = current.mutationId === mutation.mutationId
+    store.put({ ...current, revision: serverNote.revision, baseRevision: serverNote.revision,
+      syncedBody: mutation.body, syncedTitle: mutation.title, dirty: unchanged ? false : current.dirty,
+      mutationId: unchanged ? null : current.mutationId, updatedAt: unchanged ? serverNote.updatedAt : current.updatedAt })
+  }
+  await completed(transaction)
   announceChange()
 }
+
 export async function acceptConflict(mutation: NoteMutation, serverNote: Note, ownerId = owner()) {
-  await ready()
-  await db.transaction(async tx => {
-    const current = await tx.query<Row>(`SELECT ${columns} FROM notes WHERE id=$1 AND owner_id=$2`, [mutation.id, ownerId])
-    const local = current.rows[0]
-    if (!local) return
-    // The newest edit wins the copy, including edits made while the request was in flight.
-    if (local.dirty && !local.purged && !serverNote.purged) {
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  const current = await request<NoteRecord | undefined>(store.get(ownedKey(ownerId, mutation.id)))
+  if (current) {
+    if (current.dirty && !current.purged && !serverNote.purged) {
+      const id = newIdentifier()
       const suffix = ' (conflict copy)'
-      await tx.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,dirty,mutation_id,base_revision,owner_id,tags,pinned)
-        VALUES ($1,$2,$3,0,$4,$5,true,$6,0,$7,$8::text[],$9)`,
-      [newIdentifier(), `${local.title.slice(0, 500 - suffix.length)}${suffix}`, local.body,
-        local.created_at ?? local.updated_at, new Date().toISOString(), newIdentifier(), ownerId, local.tags, local.pinned])
+      store.add({ ...current, key: ownedKey(ownerId, id), id,
+        title: `${current.title.slice(0, 500 - suffix.length)}${suffix}`, revision: 0, baseRevision: 0,
+        updatedAt: new Date().toISOString(), deletedAt: null, purged: false, dirty: true,
+        mutationId: newIdentifier(), syncedBody: '', syncedTitle: '' })
     }
-    await tx.query(`UPDATE notes SET title=$1,body=$2,revision=$3,created_at=$4,updated_at=$5,deleted_at=$6,tags=$7::text[],pinned=$10,purged=$11,
-      dirty=false,mutation_id=NULL,base_revision=$3,synced_body=$2,synced_title=$1
-      WHERE id=$8 AND owner_id=$9`,
-    [serverNote.title, serverNote.body, serverNote.revision, serverNote.createdAt, serverNote.updatedAt,
-      serverNote.deletedAt, serverNote.tags, serverNote.id, ownerId, serverNote.pinned, serverNote.purged])
-  })
+    store.put(serverRecord(serverNote, ownerId))
+  }
+  await completed(transaction)
   announceChange()
 }
-/** Applies a server change page atomically and announces it once after commit. */
+
 export async function receiveNotes(notes: Note[], ownerId = owner()) {
   if (!notes.length) return
-  await ready()
-  await db.transaction(async tx => {
-    for (const note of notes) await tx.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags,pinned,purged,synced_body,synced_title)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,false,NULL,$4,$8,$9::text[],$10,$11,$3,$2)
-      ON CONFLICT (id) DO UPDATE SET title=$2,body=$3,revision=$4,created_at=$5,updated_at=$6,deleted_at=$7,tags=$9::text[],pinned=$10,purged=$11,
-        dirty=false,mutation_id=NULL,base_revision=$4,synced_body=$3,synced_title=$2
-      WHERE notes.owner_id=$8 AND notes.dirty = false AND notes.revision < $4`,
-      [note.id, note.title, note.body, note.revision, note.createdAt, note.updatedAt, note.deletedAt, ownerId, note.tags, note.pinned, note.purged])
-  })
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  for (const note of notes) {
+    const current = await request<NoteRecord | undefined>(store.get(ownedKey(ownerId, note.id)))
+    if (!current || (!current.dirty && current.revision < note.revision)) store.put(serverRecord(note, ownerId))
+  }
+  await completed(transaction)
   announceChange()
 }
 
 export async function receiveNote(note: Note, ownerId = owner()) { await receiveNotes([note], ownerId) }
-export async function getCursor(ownerId = owner()) {
-  await ready()
-  const result = await db.query<{ value: string }>(`SELECT value FROM sync_state WHERE key=$1`, [`cursor:${ownerId}`])
-  return Number(result.rows[0]?.value ?? '0')
+
+async function syncValue(key: string) {
+  const database = await ready()
+  const transaction = database.transaction('syncState', 'readonly')
+  const state = await request<SyncRecord | undefined>(transaction.objectStore('syncState').get(key))
+  await completed(transaction)
+  return state?.value ?? 0
 }
+
+export function getCursor(ownerId = owner()) { return syncValue(`cursor:${ownerId}`) }
+
 export async function setCursor(cursor: number, ownerId = owner()) {
-  await ready()
-  await db.query(`INSERT INTO sync_state(key,value) VALUES ($1,$2)
-    ON CONFLICT(key) DO UPDATE SET value=$2`, [`cursor:${ownerId}`, String(cursor)])
+  const database = await ready()
+  const transaction = database.transaction('syncState', 'readwrite')
+  transaction.objectStore('syncState').put({ key: `cursor:${ownerId}`, value: cursor } satisfies SyncRecord)
+  await completed(transaction)
 }
 
-export async function getGeneration(ownerId = owner()): Promise<number> {
-  await ready()
-  const result = await db.query<{ value: string }>(`SELECT value FROM sync_state WHERE key=$1`, [`generation:${ownerId}`])
-  return Number(result.rows[0]?.value ?? '0')
-}
+export function getGeneration(ownerId = owner()) { return syncValue(`generation:${ownerId}`) }
 
-/** Removes every local note for one workspace, including pending edits and tombstones. */
 export async function resetLocalNotes(ownerId: string, generation: number) {
-  await ready()
-  await db.transaction(async tx => {
-    await tx.query('DELETE FROM notes WHERE owner_id=$1', [ownerId])
-    await tx.query('DELETE FROM attachments WHERE owner_id=$1', [ownerId])
-    await tx.query('DELETE FROM sync_state WHERE key=$1', [`cursor:${ownerId}`])
-    await tx.query(`INSERT INTO sync_state(key,value) VALUES ($1,$2)
-      ON CONFLICT(key) DO UPDATE SET value=$2`, [`generation:${ownerId}`, String(generation)])
-  })
+  const database = await ready()
+  const transaction = database.transaction(['notes', 'attachments', 'syncState'], 'readwrite')
+  const noteStore = transaction.objectStore('notes')
+  const attachmentStore = transaction.objectStore('attachments')
+  const noteKeys = await request<IDBValidKey[]>(noteStore.index('ownerId').getAllKeys(ownerId))
+  const attachments = await request<AttachmentRecord[]>(attachmentStore.index('ownerId').getAll(ownerId))
+  for (const key of noteKeys) noteStore.delete(key)
+  for (const attachment of attachments) attachmentStore.delete(attachment.key)
+  const syncStore = transaction.objectStore('syncState')
+  syncStore.delete(`cursor:${ownerId}`)
+  syncStore.put({ key: `generation:${ownerId}`, value: generation } satisfies SyncRecord)
+  await completed(transaction)
   announceChange()
 }

@@ -1,98 +1,125 @@
 import type { NoteSort } from '../../preferences'
-import { announceChange, columns, db, map, owner, ready, type LocalNote, type Row } from './database'
+import { announceChange, completed, ownedKey, owner, ready, request, type AttachmentRecord,
+  type LocalNote, type NoteRecord } from './database'
 import { newIdentifier } from './identifiers'
 
+function publicNote({ key: _key, ownerId: _ownerId, ...note }: NoteRecord): LocalNote { return note }
+
+async function ownerNotes(ownerId: string) {
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readonly')
+  const notes = await request<NoteRecord[]>(transaction.objectStore('notes').index('ownerId').getAll(ownerId))
+  await completed(transaction)
+  return notes
+}
+
 export async function listNotes(search = '', sort: NoteSort = 'modified', tag: string | null = null): Promise<LocalNote[]> {
-  const ownerId = owner()
-  await ready()
-  const pattern = `%${search.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')}%`
-  const ranking = search ? `CASE WHEN title ILIKE $1 ESCAPE '\\' THEN 0 ELSE 1 END,` : ''
-  const order = sort === 'title' ? 'lower(title) ASC, updated_at DESC, id ASC' : 'updated_at DESC, id ASC'
-  const result = await db.query<Row>(`SELECT ${columns} FROM notes WHERE deleted_at IS NULL
-    AND owner_id = $2
-    AND (title ILIKE $1 ESCAPE '\\' OR body ILIKE $1 ESCAPE '\\' OR array_to_string(tags, ' ') ILIKE $1 ESCAPE '\\')
-    AND ($3::text IS NULL OR $3 = ANY(tags))
-    ORDER BY ${ranking} ${order}`, [pattern, ownerId, tag])
-  return result.rows.map(map)
-}
-export async function listTags(): Promise<string[]> {
-  const ownerId = owner()
-  await ready()
-  const result = await db.query<{ tag: string }>(`SELECT DISTINCT tag FROM notes, unnest(tags) AS tag
-    WHERE deleted_at IS NULL AND owner_id=$1 ORDER BY tag`, [ownerId])
-  return result.rows.map(row => row.tag)
-}
-/** Lists recoverable notes in the active workspace, newest deletion first. */
-export async function listTrash(): Promise<LocalNote[]> {
-  await ready()
-  const result = await db.query<Row>(`SELECT ${columns} FROM notes
-    WHERE owner_id=$1 AND deleted_at IS NOT NULL AND purged=false ORDER BY deleted_at DESC, id ASC`, [owner()])
-  return result.rows.map(map)
-}
-/** Restores a deleted note without changing its content. */
-export async function restoreNote(id: string, ownerId = owner()) {
-  await ready()
-  const result = await db.query(`UPDATE notes SET deleted_at=NULL,updated_at=$3,dirty=true,mutation_id=$4
-    WHERE id=$1 AND owner_id=$2 AND deleted_at IS NOT NULL AND purged=false`,
-  [id, ownerId, new Date().toISOString(), newIdentifier()])
-  if (result.rowCount) announceChange()
-  return result.rowCount !== 0
-}
-/** Clears content from all recoverable deleted notes, retaining sync tombstones. */
-export async function emptyTrash(ownerId = owner()) {
-  await ready()
-  const attachmentIds: string[] = []
-  const count = await db.transaction(async tx => {
-    const attached = await tx.query<{ id: string }>(`SELECT attachments.id FROM attachments
-      JOIN notes ON notes.id=attachments.note_id AND notes.owner_id=attachments.owner_id
-      WHERE notes.owner_id=$1 AND notes.deleted_at IS NOT NULL AND notes.purged=false`, [ownerId])
-    attachmentIds.push(...attached.rows.map(row => row.id))
-    const result = await tx.query(`UPDATE notes SET title='',body='',tags='{}'::text[],pinned=false,purged=true,
-      synced_title='',synced_body='',updated_at=$2,dirty=true,mutation_id=gen_random_uuid()
-      WHERE owner_id=$1 AND deleted_at IS NOT NULL AND purged=false`, [ownerId, new Date().toISOString()])
-    await tx.query(`DELETE FROM attachments WHERE owner_id=$1 AND id=ANY($2::uuid[])`, [ownerId, attachmentIds])
-    return result.rowCount ?? 0
+  const term = search.toLocaleLowerCase()
+  const notes = (await ownerNotes(owner())).filter(note => !note.deletedAt &&
+    (!tag || note.tags.includes(tag)) && (!term || note.title.toLocaleLowerCase().includes(term) ||
+      note.body.toLocaleLowerCase().includes(term) || note.tags.join(' ').toLocaleLowerCase().includes(term)))
+  notes.sort((a, b) => {
+    const rank = term ? Number(!a.title.toLocaleLowerCase().includes(term)) - Number(!b.title.toLocaleLowerCase().includes(term)) : 0
+    if (rank) return rank
+    const order = sort === 'title' ? a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) :
+      a.updatedAt.localeCompare(b.updatedAt)
+    return (sort === 'title' ? order : -order) || a.id.localeCompare(b.id)
   })
-  if (count) announceChange()
-  return { count, attachmentIds }
+  return notes.map(publicNote)
 }
-export async function saveNote(id: string, title: string, body: string, deleted = false, ownerId = owner(), tags: string[] = []) {
-  await ready()
+
+export async function listTags(): Promise<string[]> {
+  return [...new Set((await ownerNotes(owner())).filter(note => !note.deletedAt).flatMap(note => note.tags))].sort()
+}
+
+export async function listTrash(): Promise<LocalNote[]> {
+  return (await ownerNotes(owner())).filter(note => note.deletedAt && !note.purged)
+    .sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!) || a.id.localeCompare(b.id)).map(publicNote)
+}
+
+export async function restoreNote(id: string, ownerId = owner()) {
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  const note = await request<NoteRecord | undefined>(store.get(ownedKey(ownerId, id)))
+  const changed = !!note?.deletedAt && !note.purged
+  if (note && changed) store.put({ ...note, deletedAt: null, updatedAt: new Date().toISOString(), dirty: true, mutationId: newIdentifier() })
+  await completed(transaction)
+  if (changed) announceChange()
+  return changed
+}
+
+export async function emptyTrash(ownerId = owner()) {
+  const database = await ready()
+  const transaction = database.transaction(['notes', 'attachments'], 'readwrite')
+  const noteStore = transaction.objectStore('notes')
+  const attachmentStore = transaction.objectStore('attachments')
+  const notes = await request<NoteRecord[]>(noteStore.index('ownerId').getAll(ownerId))
+  const attachments = await request<AttachmentRecord[]>(attachmentStore.index('ownerId').getAll(ownerId))
+  const purged = notes.filter(note => note.deletedAt && !note.purged)
+  const noteIds = new Set(purged.map(note => note.id))
+  const attachmentIds: string[] = []
   const now = new Date().toISOString()
-  const result = await db.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,deleted_at,dirty,mutation_id,base_revision,owner_id,tags)
-    VALUES ($1,$2,$3,0,$4,$4,$5,true,$6,0,$7,$8::text[])
-    ON CONFLICT (id) DO UPDATE SET title=$2,body=$3,updated_at=$4,deleted_at=$5,
-      dirty=true,mutation_id=$6,tags=$8::text[]
-    WHERE notes.owner_id=$7 AND (notes.title IS DISTINCT FROM $2 OR notes.body IS DISTINCT FROM $3
-      OR notes.tags IS DISTINCT FROM $8::text[]
-      OR (notes.deleted_at IS NULL) IS DISTINCT FROM ($5::text IS NULL))`,
-    [id, title, body, now, deleted ? now : null, newIdentifier(), ownerId, tags])
-  if (result.rowCount) announceChange()
-  return result.rowCount !== 0
+  for (const note of purged) noteStore.put({ ...note, title: '', body: '', tags: [], pinned: false, purged: true,
+    syncedTitle: '', syncedBody: '', updatedAt: now, dirty: true, mutationId: newIdentifier() })
+  for (const attachment of attachments) if (noteIds.has(attachment.noteId)) {
+    attachmentIds.push(attachment.id)
+    attachmentStore.delete(attachment.key)
+  }
+  await completed(transaction)
+  if (purged.length) announceChange()
+  return { count: purged.length, attachmentIds }
 }
-/** Changes pin state without rewriting note content or tags. */
+
+export async function saveNote(id: string, title: string, body: string, deleted = false, ownerId = owner(), tags: string[] = []) {
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  const key = ownedKey(ownerId, id)
+  const current = await request<NoteRecord | undefined>(store.get(key))
+  const changed = !current || current.title !== title || current.body !== body ||
+    current.tags.length !== tags.length || current.tags.some((tag, index) => tag !== tags[index]) || !!current.deletedAt !== deleted
+  if (changed) {
+    const now = new Date().toISOString()
+    store.put(current ? { ...current, title, body, tags, updatedAt: now, deletedAt: deleted ? now : null,
+      dirty: true, mutationId: newIdentifier() } : {
+      key, ownerId, id, title, body, tags, pinned: false, purged: false, revision: 0,
+      createdAt: now, updatedAt: now, deletedAt: deleted ? now : null, dirty: true, mutationId: newIdentifier(), baseRevision: 0,
+      syncedBody: '', syncedTitle: '',
+    } satisfies NoteRecord)
+  }
+  await completed(transaction)
+  if (changed) announceChange()
+  return changed
+}
+
 export async function setPinned(id: string, pinned: boolean, ownerId = owner()) {
-  await ready()
-  const result = await db.query(`UPDATE notes SET pinned=$2,updated_at=$3,dirty=true,mutation_id=$4
-    WHERE id=$1 AND owner_id=$5 AND deleted_at IS NULL AND pinned IS DISTINCT FROM $2`,
-  [id, pinned, new Date().toISOString(), newIdentifier(), ownerId])
-  if (result.rowCount) announceChange()
-  return result.rowCount !== 0
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  const note = await request<NoteRecord | undefined>(store.get(ownedKey(ownerId, id)))
+  const changed = !!note && !note.deletedAt && note.pinned !== pinned
+  if (note && changed) store.put({ ...note, pinned, updatedAt: new Date().toISOString(), dirty: true, mutationId: newIdentifier() })
+  await completed(transaction)
+  if (changed) announceChange()
+  return changed
 }
-/** Adds a validated backup in one local transaction, bound to the active workspace. */
+
 export async function importLocalNotes(notes: { title: string; body: string; tags?: string[];
   pinned?: boolean; createdAt?: string; updatedAt?: string }[], onProgress?: (completed: number, total: number) => void) {
   const ownerId = owner()
-  await ready()
-  await db.transaction(async tx => {
-    for (const [index, note] of notes.entries()) {
-      const now = new Date().toISOString()
-      await tx.query(`INSERT INTO notes (id,title,body,revision,created_at,updated_at,dirty,mutation_id,base_revision,owner_id,tags,pinned)
-        VALUES ($1,$2,$3,0,$4,$5,true,$6,0,$7,$8::text[],$9)`,
-      [newIdentifier(), note.title, note.body, note.createdAt ?? note.updatedAt ?? now,
-        note.updatedAt ?? note.createdAt ?? now, newIdentifier(), ownerId, note.tags ?? [], note.pinned ?? false])
-      onProgress?.(index + 1, notes.length)
-    }
-  })
+  const database = await ready()
+  const transaction = database.transaction('notes', 'readwrite')
+  const store = transaction.objectStore('notes')
+  for (const [index, note] of notes.entries()) {
+    const id = newIdentifier()
+    const now = new Date().toISOString()
+    store.add({ key: ownedKey(ownerId, id), ownerId, id, title: note.title, body: note.body, tags: note.tags ?? [],
+      pinned: note.pinned ?? false, purged: false, revision: 0, createdAt: note.createdAt ?? note.updatedAt ?? now,
+      updatedAt: note.updatedAt ?? note.createdAt ?? now, deletedAt: null, dirty: true, mutationId: newIdentifier(),
+      baseRevision: 0, syncedBody: '', syncedTitle: '' } satisfies NoteRecord)
+    onProgress?.(index + 1, notes.length)
+  }
+  await completed(transaction)
   announceChange()
 }
