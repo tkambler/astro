@@ -345,13 +345,16 @@ button { cursor: pointer; }
 .tag-manager-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--line); }
 .tag-manager-actions .tag-manager-save { border-color: var(--accent); background: var(--accent); color: white; }
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
+  html, body, #root { overflow: hidden; }
+  #root { position: fixed; inset: 0; }
   .mobile-list .mobile-list-heading, .mobile-list .omnibar, .mobile-list .sidebar { -webkit-user-select: none; user-select: none; }
-  .app.mobile-list { min-height: 100dvh; height: auto; overflow: visible; background: var(--bg-chrome); }
-  .mobile-list .workspace, .mobile-list .sidebar { display: block; min-height: 0; }
-  .mobile-list .results { overflow: visible; padding-top: calc(178px + env(safe-area-inset-top)); }
+  .app.mobile-list { height: 100%; min-height: 0; overflow: hidden; background: var(--bg-chrome); }
+  .mobile-list .workspace { min-height: 0; }
+  .mobile-list .sidebar { display: flex; min-height: 0; }
+  .mobile-list .results { min-height: 0; overflow-y: auto; overscroll-behavior-y: auto; -webkit-overflow-scrolling: touch; }
   .command-viewport { padding: calc(12px + env(safe-area-inset-top)) 12px 12px; }
   .command-results { min-height: 0; max-height: none; }
-  .mobile-list-heading { position: fixed; top: 0; left: 0; z-index: 11; display: flex; width: 100%; height: calc(58px + env(safe-area-inset-top)); flex: none; align-items: center; gap: 8px; padding: env(safe-area-inset-top) 18px 0; background: var(--bg); color: var(--text-muted); font-size: 12px; letter-spacing: .24em; }
+  .mobile-list-heading { display: flex; width: 100%; height: calc(58px + env(safe-area-inset-top)); flex: none; align-items: center; gap: 8px; padding: env(safe-area-inset-top) 18px 0; background: var(--bg); color: var(--text-muted); font-size: 12px; letter-spacing: .24em; }
   .desktop-collection-picker { display: none; }
   .mobile-collection-picker { display: block; min-width: 0; flex: 1; }
   .mobile-collection-picker .collection-trigger { max-width: 100%; height: 44px; border: 0; padding: 0; background: transparent; color: var(--text-muted); font-size: 12px; letter-spacing: .2em; text-transform: uppercase; }
@@ -367,13 +370,13 @@ button { cursor: pointer; }
   .mobile-connection.connected { color: var(--accent); }
   .mobile-connection svg { width: 23px; height: 23px; }
   .mobile-header-palette { flex: none; width: 38px; height: 38px; border: 0; border-radius: 6px; padding: 0; background: transparent; color: var(--text-secondary); }
-  .omnibar { height: 64px; margin: 0; padding: 0 18px; gap: 10px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }.mobile-list > .omnibar { position: fixed; top: calc(58px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 10; background: var(--bg); }.omnibar input { font-size: 17px; }.chip { display: none; }
+  .omnibar { height: 64px; margin: 0; padding: 0 18px; gap: 10px; border: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0; }.mobile-list > .omnibar { background: var(--bg); }.omnibar input { font-size: 17px; }.chip { display: none; }
   .mobile-clear { display: inline-flex; align-items: center; justify-content: center; width: 31px; height: 31px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--text-secondary); font-size: 20px; }
   .omnibar .icon-button, .omnibar-shortcut { display: none; }
   .mobile-detail > .omnibar, .mobile-detail > .mobile-list-heading { display: none; }
   .sidebar { max-width: none; width: 100%; }.mobile-hidden { display: none; }
   .sidebar-heading { padding: 0 18px; letter-spacing: .16em; }
-  .mobile-list .sidebar-heading { position: fixed; top: calc(122px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 10; background: var(--bg-chrome); }
+  .mobile-list .sidebar-heading { background: var(--bg-chrome); }
   .sidebar-heading .mobile-tags { display: inline-flex; align-items: center; justify-content: center; max-width: 120px; margin-left: auto; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px; background: var(--bg); color: var(--text-secondary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .result-swipe { position: relative; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--line) 75%, var(--text-muted)); touch-action: pan-y; }.result-front { position: relative; z-index: 1; background: var(--bg-chrome); transition: transform .18s ease; }.result { gap: 7px; padding: 18px; background: var(--bg-chrome); -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; }
   .result-line strong { font-size: 15px; }
