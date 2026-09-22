@@ -177,7 +177,7 @@ export function App() {
   const mobileListScroll = useRef<{ top: number; restore: boolean }>({ top: 0, restore: false })
   const selected = notes.find(note => note.id === selectedId) ?? null
   const showMobileEditor = () => {
-    if (mobileLayout && !mobileEditor) mobileListScroll.current = { top: results.current?.scrollTop ?? 0, restore: true }
+    if (mobileLayout && !mobileEditor) mobileListScroll.current = { top: window.scrollY, restore: true }
     setMobileEditor(true)
   }
   const returnToMobileList = () => setMobileEditor(false)
@@ -185,7 +185,7 @@ export function App() {
     if (!mobileLayout || mobileEditor || !mobileListScroll.current.restore) return
     const { top } = mobileListScroll.current
     mobileListScroll.current.restore = false
-    if (results.current) results.current.scrollTop = top
+    window.scrollTo(0, top)
   }, [mobileLayout, mobileEditor])
   const createAndOpen = async (title: string) => {
     if (await create(title)) showMobileEditor()
