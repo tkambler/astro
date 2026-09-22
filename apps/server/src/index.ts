@@ -8,6 +8,7 @@ import { mountNoteRoutes, mountNoteSockets } from './notes/index.js'
 import { mountSystemRoutes } from './system/index.js'
 import { mountShareRoutes } from './shares/index.js'
 import { mountAttachmentRoutes } from './attachments/index.js'
+import { mountCollectionRoutes } from './collections/index.js'
 import { prepareAttachmentStorage } from '@astronote/domain'
 import { securityHeaders } from './security/index.js'
 
@@ -30,6 +31,7 @@ mountAccountRoutes(app)
 mountSystemRoutes(app)
 mountShareRoutes(app)
 mountAttachmentRoutes(app)
+mountCollectionRoutes(app)
 app.get('/api/health', (_request, response) => response.json({ ok: true }))
 mountApiDocs(app, { sessionCookie: sessionCookieName })
 mountNoteRoutes(app)

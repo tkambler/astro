@@ -15,6 +15,7 @@ import * as attachments from './migrations/202609200013_attachments.js'
 import * as shareLimits from './migrations/202609200014_share_limits.js'
 import * as apiKeys from './migrations/202609200015_api_keys.js'
 import * as collections from './migrations/202609200016_collections.js'
+import * as collectionCatalog from './migrations/202609200017_collection_catalog.js'
 
 const migrations = { '202609200001_notes': notes, '202609200002_accounts': accounts,
   '202609200003_tags': tags, '202609200004_authentication_limits': authenticationLimits,
@@ -26,7 +27,8 @@ const migrations = { '202609200001_notes': notes, '202609200002_accounts': accou
   '202609200013_attachments': attachments,
   '202609200014_share_limits': shareLimits,
   '202609200015_api_keys': apiKeys,
-  '202609200016_collections': collections }
+  '202609200016_collections': collections,
+  '202609200017_collection_catalog': collectionCatalog }
 
 const db = database()
 try {

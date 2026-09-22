@@ -2,7 +2,7 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { database } from '@astronote/db'
 import { accountForSession, authenticateAccount, createSession, endSession,
-  authenticationAttemptAllowed, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
+  authenticationAttemptAllowed, createCollection, listCollections, noteGeneration, NoteGenerationMismatchError, pullNotes, pushNotes,
   recoverAccount, registerAccount, resetNotes, rotateRecoveryCode, getSystemSettings,
   setAccountRegistration, listSystemUsers, RegistrationDisabledError, SystemAccessDeniedError,
   getAccountPreferences, setAccountPreferences } from '../src/index.js'
@@ -65,6 +65,7 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
   assert.equal(created.note.pinned, false)
   assert.equal(created.note.createdAt, initial.createdAt)
   assert.equal(created.note.updatedAt, initial.updatedAt)
+  assert.deepEqual((await listCollections(first.id)).collections, [{ name: 'Notes' }])
 
   const retried = (await pushNotes(first.id, [initial])).results[0]
   assert.equal(retried?.status, 'applied')
@@ -112,6 +113,17 @@ test('account preferences persist independently for each account', async () => {
   await setAccountPreferences(first.id, preferences)
   assert.deepEqual(await getAccountPreferences(first.id), preferences)
   assert.equal(await getAccountPreferences(second.id), null)
+})
+
+test('empty collections persist independently for each account and creation is idempotent', async () => {
+  const first = await registerAccount({ email: `collections-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  const second = await registerAccount({ email: `collections-${crypto.randomUUID()}@example.test`,
+    password: 'test-password-long-enough' })
+  assert.deepEqual(await createCollection(first.id, 'Projects'), { name: 'Projects' })
+  assert.deepEqual(await createCollection(first.id, 'projects'), { name: 'Projects' })
+  assert.deepEqual((await listCollections(first.id)).collections, [{ name: 'Projects' }])
+  assert.deepEqual((await listCollections(second.id)).collections, [])
 })
 
 test('note shares are account scoped, public, current, and revocable', async () => {

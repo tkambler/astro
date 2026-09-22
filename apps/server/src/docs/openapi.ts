@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { account, accountPreferences, apiKey, apiKeyName, createdApiKey, credentials, note, noteMutation, noteShare, publicNote, pullResult,
+import { account, accountPreferences, apiKey, apiKeyName, collection, collectionList, createdApiKey, credentials, note, noteMutation, noteShare, publicNote, pullResult,
   passwordConfirmation, pushRequest, pushResult, recoveryRequest, shareId, systemSettings, systemUser, attachment, attachmentList } from '@astronote/schemas'
 
 type Schema = Record<string, unknown>
@@ -13,6 +13,7 @@ requestModels.add(passwordConfirmation, { id: 'PasswordConfirmation' })
 requestModels.add(apiKeyName, { id: 'ApiKeyName' })
 requestModels.add(noteMutation, { id: 'NoteMutation' })
 requestModels.add(pushRequest, { id: 'PushRequest' })
+requestModels.add(collection, { id: 'Collection' })
 const responseModels = z.registry<{ id: string }>()
 responseModels.add(note, { id: 'Note' })
 responseModels.add(pullResult, { id: 'PullResult' })
@@ -27,6 +28,8 @@ responseModels.add(systemSettings, { id: 'SystemSettings' })
 responseModels.add(systemUser, { id: 'SystemUser' })
 responseModels.add(attachment, { id: 'Attachment' })
 responseModels.add(attachmentList, { id: 'AttachmentList' })
+responseModels.add(collection, { id: 'Collection' })
+responseModels.add(collectionList, { id: 'CollectionList' })
 
 const withoutDialect = ({ $schema: _, $id: __, ...schema }: Schema) => schema
 
@@ -117,6 +120,12 @@ const paths: Record<string, Record<string, Operation>> = {
     delete: write({ operationId: 'resetNotes', tags: ['Notes'], summary: 'Delete every note and start a new generation',
       description: 'Other devices receive 409 from the sync endpoints until they adopt the new generation.',
       responses: { 200: json('The new note generation', generation), ...signedIn, ...failed } }),
+  },
+  '/api/collections': {
+    get: { operationId: 'listCollections', tags: ['Collections'], summary: 'List collections, including empty collections',
+      responses: { 200: json('The account collection catalog', ref('CollectionList')), ...signedIn, ...failed } },
+    post: write({ operationId: 'createCollection', tags: ['Collections'], summary: 'Create a collection', requestBody: body(ref('Collection')),
+      responses: { 201: json('The created or existing collection', ref('Collection')), 400: error('Invalid collection'), ...signedIn, ...failed } }),
   },
   '/api/notes/state': {
     get: { operationId: 'getNoteState', tags: ['Notes'], summary: 'Current note generation',
@@ -209,6 +218,7 @@ export function createOpenApiDocument(options: { sessionCookie: string }) {
     servers: [{ url: '/' }],
     tags: [
       { name: 'Account', description: 'Registration, sessions, recovery, API keys, and synced preferences' },
+      { name: 'Collections', description: 'Synced note collection catalog' },
       { name: 'Notes', description: 'Offline-first note sync: pull changes by cursor, push batched mutations' },
       { name: 'Attachments', description: 'Connected file resources owned by notes' },
       { name: 'Shares', description: 'Public read-only links to individual notes' },

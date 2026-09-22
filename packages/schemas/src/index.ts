@@ -1,8 +1,15 @@
 import { z } from 'zod'
 
+export const collectionName = z.string().trim().min(1).max(80)
+export type CollectionName = z.infer<typeof collectionName>
+export const collection = z.object({ name: collectionName })
+export type Collection = z.infer<typeof collection>
+export const collectionList = z.object({ collections: z.array(collection) })
+export type CollectionList = z.infer<typeof collectionList>
+
 export const note = z.object({
   id: z.uuid(),
-  collection: z.string().trim().min(1).max(80),
+  collection: collectionName,
   title: z.string().max(500),
   body: z.string(),
   tags: z.array(z.string().min(1).max(50)).max(20),
@@ -18,7 +25,7 @@ export type Note = z.infer<typeof note>
 export const noteMutation = z.object({
   mutationId: z.uuid(),
   id: z.uuid(),
-  collection: z.string().trim().min(1).max(80),
+  collection: collectionName,
   baseRevision: z.number().int().nonnegative(),
   title: z.string().max(500),
   body: z.string(),

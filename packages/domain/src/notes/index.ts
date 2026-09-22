@@ -80,6 +80,8 @@ export async function pushNotes(userId: string, mutations: NoteMutation[], gener
         revision, created_at: current?.created_at ?? (mutation.createdAt ? new Date(mutation.createdAt) : now),
         updated_at: current ? now : (mutation.updatedAt ? new Date(mutation.updatedAt) : now),
         deleted_at: mutation.deleted || purged ? now : null }
+      await tx('collections').insert({ user_id: userId, name: mutation.collection,
+        name_key: mutation.collection.toLowerCase(), created_at: now }).onConflict(['user_id', 'name_key']).ignore()
       if (current) await tx('notes').where({ id: mutation.id, user_id: userId }).update(data)
       else await tx('notes').insert({ ...data, user_id: userId })
       if (purged) {

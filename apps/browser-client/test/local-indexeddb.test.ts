@@ -34,6 +34,10 @@ test('native IndexedDB storage preserves workspace, sync, attachment, and trash 
   await local.saveLocalAttachment(attachment)
   assert.deepEqual(await local.listLocalAttachments(moved.id), [attachment])
 
+  await local.saveNote(moved.id, moved.title, moved.body, false, undefined, moved.tags, 'Work')
+  const movedToWork = (await local.listNotes()).find(note => note.id === moved.id)!
+  assert.equal(movedToWork.collection, 'Work')
+
   await local.setCursor(42)
   assert.equal(await local.getCursor(), 42)
   await local.receiveNote({ id: local.newIdentifier(), collection: 'Work', title: 'Remote note', body: 'server body', tags: ['remote'],
@@ -41,12 +45,12 @@ test('native IndexedDB storage preserves workspace, sync, attachment, and trash 
     updatedAt: '2026-01-02T00:00:00.000Z', deletedAt: null })
   assert.deepEqual((await local.listNotes('', 'title')).map(note => note.title), ['Guest note', 'Remote note'])
 
-  await local.saveNote(moved.id, moved.title, moved.body, true, undefined, moved.tags)
+  await local.saveNote(moved.id, moved.title, moved.body, true, undefined, moved.tags, movedToWork.collection)
   assert.equal((await local.listTrash()).length, 1)
   assert.equal(await local.restoreNote(moved.id), true)
   assert.equal((await local.listTrash()).length, 0)
 
-  await local.saveNote(moved.id, moved.title, moved.body, true, undefined, moved.tags)
+  await local.saveNote(moved.id, moved.title, moved.body, true, undefined, moved.tags, movedToWork.collection)
   const emptied = await local.emptyTrash()
   assert.deepEqual(emptied, { count: 1, attachmentIds: [attachment.id] })
   assert.deepEqual(await local.listLocalAttachments(moved.id), [])

@@ -4,6 +4,7 @@ import { acceptConflict, acceptPush, activeAccountId, getCursor, getGeneration, 
 import { useAccount } from '../../account'
 import { nextPushBatch } from './batch'
 import { clearCachedAttachments } from '../../attachments'
+import { syncCollections } from '../../collections'
 export { watchRemoteChanges } from './changes'
 
 export type SyncProgress = { completed: number; total: number }
@@ -86,6 +87,8 @@ async function performSync(accountId: string, onProgress: ((progress: SyncProgre
   }
   const generation = await reconcileGeneration()
   if (generation === null || !stillActive()) return { pushed: 0, pulled: 0 }
+  await syncCollections(accountId)
+  await onNotesReceived?.()
   let pushed = 0
   let pulled = 0
   let completed = 0

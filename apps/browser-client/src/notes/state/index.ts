@@ -45,6 +45,7 @@ type State = {
   resort(): void;
   select(id: string | null): void; create(title: string): Promise<boolean>;
   save(id: string, title: string, body: string, tags: string[]): Promise<void>;
+  move(id: string, collection: string): Promise<boolean>;
   setPinned(id: string, pinned: boolean): Promise<boolean>;
   remove(id: string): Promise<boolean>; restore(id: string): Promise<boolean>; emptyTrash(): Promise<number>;
   reset(): Promise<void>; sync(): Promise<void>;
@@ -77,6 +78,7 @@ export const useNotes = create<State>((set, get) => ({
     const { name, collections } = added
     set({ collections })
     get().setActiveCollection(name)
+    void get().sync()
     return true
   },
   resort() { set(state => ({ notes: visibleNotes(state.allNotes, state.activeCollection, state.search, state.tagFilter) })) },
@@ -119,6 +121,15 @@ export const useNotes = create<State>((set, get) => ({
     await get().refresh()
     clearTimeout(editSyncTimer)
     editSyncTimer = setTimeout(() => { void get().sync() }, 750)
+  },
+  async move(id, collection) {
+    const note = get().allNotes.find(item => item.id === id)
+    if (!note || note.collection === collection || !get().collections.includes(collection)) return false
+    try { await saveNote(id, note.title, note.body, false, undefined, note.tags, collection) }
+    catch (error) { set({ status: 'storage-error', error: String(error) }); return false }
+    await get().refresh()
+    void get().sync()
+    return true
   },
   async setPinned(id, pinned) {
     let changed: boolean

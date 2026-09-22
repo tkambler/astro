@@ -41,7 +41,7 @@ function caretIsAtStartOfFirstEditorBlock(target: EventTarget) {
 
 const EditorActionsContext = createContext<{
   mode: 'rich' | 'source'; invalidFrontmatter: boolean; heading: ReactNode;
-  showRich: () => void; showSource: () => void; deleteNote: () => void
+  showRich: () => void; showSource: () => void; moveNote: () => void; deleteNote: () => void
 } | null>(null)
 
 function EditorToolbarHeading() {
@@ -68,7 +68,7 @@ function EditorToolbarActions() {
         ? <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m7 5-5 5 5 5m6-10 5 5-5 5M12 3 8 17" /></svg>
         : <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h12M4 10h12M4 15h8" /></svg>}
     </button>
-    <details ref={menu} className="editor-more" onKeyDown={event => { if (event.key === 'Escape') menu.current!.open = false }}><summary aria-label="More Note Actions" title="More Note Actions">⋯</summary><div className="editor-more-menu"><button type="button" onClick={actions.deleteNote}>Delete</button></div></details>
+    <details ref={menu} className="editor-more" onKeyDown={event => { if (event.key === 'Escape') menu.current!.open = false }}><summary aria-label="More Note Actions" title="More Note Actions">⋯</summary><div className="editor-more-menu"><button type="button" onClick={actions.moveNote}>Move to Collection…</button><button type="button" className="destructive" onClick={actions.deleteNote}>Delete</button></div></details>
   </div>
 }
 
@@ -117,10 +117,25 @@ function CollectionPicker({ className, collections, active, onSelect, onCreate }
   </div>
 }
 
+function MoveNoteDialog({ note, collections, onMove, onClose }: { note: LocalNote; collections: string[];
+  onMove(collection: string): void; onClose(): void }) {
+  return <><button className="move-dialog-backdrop" aria-label="Close move dialog" onClick={onClose} />
+    <section className="move-dialog" role="dialog" aria-modal="true" aria-labelledby="move-dialog-title">
+      <h2 id="move-dialog-title">MOVE TO COLLECTION</h2>
+      <p>{note.title || 'Untitled'}</p>
+      <div role="listbox" aria-label="Destination collection">
+        {collections.filter(collection => collection !== note.collection).map(collection =>
+          <button type="button" role="option" aria-selected="false" key={collection} onClick={() => onMove(collection)}>{collection}</button>)}
+      </div>
+      {collections.length === 1 && <span className="move-dialog-empty">Create another collection before moving this note.</span>}
+      <button className="move-dialog-cancel" onClick={onClose}>Cancel</button>
+    </section></>
+}
+
 export function App() {
   const { notes, allNotes, trash, tags, collections, activeCollection, tagFilter, search, selectedId, status, error, progress,
     setSearch, setTagFilter, setActiveCollection, createCollection,
-    refresh, resort, select, create, save, setPinned, remove, restore, emptyTrash, reset, sync } = useNotes()
+    refresh, resort, select, create, save, move, setPinned, remove, restore, emptyTrash, reset, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
   const accountStatus = useAccount(state => state.status)
@@ -135,6 +150,7 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [tagManagerOpen, setTagManagerOpen] = useState(false)
   const [shareDialog, setShareDialog] = useState<{ share: NoteShare | null; error: string } | null>(null)
+  const [moveNoteId, setMoveNoteId] = useState<string | null>(null)
   const focusShortcut = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K'
   const input = useRef<HTMLInputElement>(null)
   const results = useRef<HTMLDivElement>(null)
@@ -303,6 +319,7 @@ export function App() {
       run: () => { void setPinned(selected.id, !selected.pinned) } },
     ...(mobileLayout ? [{ id: 'tags', label: 'Manage Tags', description: selected.tags.length ? selected.tags.map(tag => `#${tag}`).join(' ') : 'No tags',
       run: () => setTagManagerOpen(true) }] : []),
+    { id: 'move', label: 'Move to Collection', description: selected.collection, run: () => setMoveNoteId(selected.id) },
     { id: 'share', label: 'Share Note', description: selected.title || 'Untitled', run: () => { void shareSelected(selected) } },
     { id: 'delete', label: 'Delete Note', description: selected.title || 'Untitled',
       run: () => { if (confirm('Delete this note?')) void remove(selected.id).then(deleted => { if (deleted) setMobileEditor(false) }) } }] : []),
@@ -419,7 +436,7 @@ export function App() {
         }} />
           : settings ? <Settings mobileLayout={mobileLayout} onClose={() => setSettings(false)} onNotesImported={async () => { await refresh(); void sync() }}
               onNotesReset={reset} trash={trash} onRestore={restore} onEmptyTrash={emptyTrash} />
-          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} connected={connected} onSave={save} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
+          : selected && (!mobileLayout || mobileEditor) ? <NoteEditor key={selected.id} note={selected} mobileLayout={mobileLayout} connected={connected} onSave={save} onMove={() => setMoveNoteId(selected.id)} onDelete={async id => { if (await remove(id)) setMobileEditor(false) }} onBack={() => setMobileEditor(false)} onOpenCommandPalette={() => setPaletteOpen(true)} />
           : <div className="empty-pane">Search or create a note to begin.</div>}
       </main>
     </div>
@@ -438,9 +455,17 @@ export function App() {
             {typeof navigator.share === 'function' && <button onClick={() => { void navigator.share({ title: shareDialog.share!.title || 'Untitled', url: shareUrl(shareDialog.share!.id) }) }}>Share…</button>}</div></>}
         <button className="share-dialog-close" onClick={() => setShareDialog(null)}>Close</button>
       </section></>}
+    {moveNoteId && allNotes.find(note => note.id === moveNoteId) && (() => {
+      const note = allNotes.find(item => item.id === moveNoteId)!
+      return <MoveNoteDialog note={note} collections={collections} onClose={() => setMoveNoteId(null)} onMove={collection => {
+        setMoveNoteId(null)
+        void move(note.id, collection).then(moved => { if (moved && mobileLayout) setMobileEditor(false) })
+      }} />
+    })()}
     {noteMenu && <div ref={noteMenuRef} className="sidebar-note-menu" role="menu" aria-label="Note Actions"
       style={{ left: noteMenu.x, top: noteMenu.y }}>
-      <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
+      <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); setMoveNoteId(id) }}>Move to Collection…</button>
+      <button type="button" className="destructive" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
     </div>}
     <footer className="statusbar">
       <button className={`statusbar-account ${signedIn ? 'signed-in' : ''}`} title={signedIn ? account.email : 'Sign In'} onClick={() => { setAccountPanel(true); setSettings(false) }}>{signedIn ? account.email : 'Sign In'}</button>
@@ -454,9 +479,9 @@ export function App() {
   </div>
 }
 
-function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, onOpenCommandPalette }: { note: LocalNote; mobileLayout: boolean; connected: boolean;
+function NoteEditor({ note, mobileLayout, connected, onSave, onMove, onDelete, onBack, onOpenCommandPalette }: { note: LocalNote; mobileLayout: boolean; connected: boolean;
   onSave: (id: string, title: string, body: string, tags: string[]) => Promise<void>;
-  onDelete: (id: string) => Promise<void>; onBack: () => void; onOpenCommandPalette: () => void }) {
+  onMove: () => void; onDelete: (id: string) => Promise<void>; onBack: () => void; onOpenCommandPalette: () => void }) {
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
   const editorMode = usePreferences(state => state.editorMode)
@@ -497,6 +522,7 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onDelete, onBack, o
     mode: displayMode, invalidFrontmatter, heading: <div className="editor-ribbon-heading">{noteTitle()}</div>,
     showRich: () => { setRichError(''); setRichFailed(false); setMode('rich') },
     showSource: () => setMode('source'),
+    moveNote: onMove,
     deleteNote: () => { if (confirm('Delete this note?')) void onDelete(note.id) },
   }
   const markEditorInteraction = (target: EventTarget) => {

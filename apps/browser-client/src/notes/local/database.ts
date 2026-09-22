@@ -1,4 +1,7 @@
 import type { Attachment, Note } from '@astronote/schemas'
+import { ownedKey } from './account'
+export { accountKey, activeAccountId, owner, ownedKey } from './account'
+import { owner } from './account'
 
 export type LocalNote = Note & { dirty: boolean; mutationId: string | null; baseRevision: number;
   syncedBody: string; syncedTitle: string }
@@ -6,11 +9,6 @@ export type NoteRecord = LocalNote & { key: string; ownerId: string }
 export type AttachmentRecord = Attachment & { key: string; ownerId: string }
 export type SyncRecord = { key: string; value: number }
 export type MetaRecord = { key: string; value: string }
-
-export const accountKey = 'astronote-account-id'
-export function activeAccountId() { return localStorage.getItem(accountKey) }
-export function owner() { return activeAccountId() ?? 'guest' }
-export function ownedKey(ownerId: string, id: string) { return `${ownerId}\0${id}` }
 
 const databaseName = 'astronote-local-v2'
 const legacyDatabaseName = 'astronote-notes-v1'
