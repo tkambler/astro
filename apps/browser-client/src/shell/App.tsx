@@ -49,6 +49,11 @@ function EditorToolbarHeading() {
   return useContext(EditorActionsContext)?.heading ?? null
 }
 
+function CommandPaletteIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round"><path d="m5 7 5 5-5 5" /><path d="M13 17h6" /></svg>
+}
+
 function EditorToolbarActions() {
   const actions = useContext(EditorActionsContext)
   const menu = useRef<HTMLDetailsElement>(null)
@@ -368,7 +373,7 @@ export function App() {
       </button>
       <button className="mobile-header-palette palette-trigger" aria-label="Open Command Palette"
         title="Command Palette" aria-pressed={paletteOpen} onClick={() => setPaletteOpen(value => !value)}>
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
+        <CommandPaletteIcon />
       </button>
     </div>
     <header className="omnibar">
@@ -387,7 +392,7 @@ export function App() {
       {tagFilter && <button className="chip" onClick={() => void setTagFilter(null)}>#{tagFilter} ×</button>}
       {search && <button className="mobile-clear" aria-label="Clear search" onClick={() => void setSearch('')}>×</button>}
       <button className="icon-button palette-trigger" aria-label="Open Command Palette" title={`Command Palette (${focusShortcut.startsWith('⌘') ? '⌘⇧O' : 'Ctrl Shift O'})`} aria-pressed={paletteOpen}
-        onClick={() => setPaletteOpen(value => !value)}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg></button>
+        onClick={() => setPaletteOpen(value => !value)}><CommandPaletteIcon /></button>
     </header>
     <div className="workspace">
       <aside className={`sidebar ${mobileEditor || settings || accountPanel ? 'mobile-hidden' : ''}`}>
@@ -561,7 +566,7 @@ function NoteEditor({ note, mobileLayout, connected, onSave, onMove, onDelete, o
   return <div className="note-editor-layout"><section className="note-document">
     <div className="editor-heading"><button className="mobile-back" aria-label="Back to notes" onClick={onBack}>‹</button><div className="mobile-title-field">{noteTitle()}</div>
       <button className="mobile-editor-palette palette-trigger" onClick={onOpenCommandPalette} aria-label="Open Command Palette">
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16M4 10h16M4 15h10M4 20h10" /><path d="m17 17 3 3m0-3-3 3" /></svg>
+        <CommandPaletteIcon />
       </button></div>
     {saveError && <div className="save-error" role="alert">Could not save on this device: {saveError}</div>}
     {invalidFrontmatter && <div className="editor-warning" role="status">Invalid YAML frontmatter. Edit it in source mode to restore the rich editor.</div>}
