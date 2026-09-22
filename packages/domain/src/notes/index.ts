@@ -3,10 +3,10 @@ export { watchNoteChanges }
 import type { Note, NoteMutation, PushResult, PullResult } from '@astronote/schemas'
 import { removeStoredAttachmentFiles } from '../attachments/index.js'
 
-type Row = { id: string; title: string; body: string; tags: string[]; pinned: boolean; purged: boolean; revision: number;
+type Row = { id: string; collection: string; title: string; body: string; tags: string[]; pinned: boolean; purged: boolean; revision: number;
   created_at: Date; updated_at: Date; deleted_at: Date | null }
 function toNote(row: Row): Note {
-  return { id: row.id, title: row.title, body: row.body, tags: row.tags, pinned: row.pinned, purged: row.purged, revision: row.revision,
+  return { id: row.id, collection: row.collection, title: row.title, body: row.body, tags: row.tags, pinned: row.pinned, purged: row.purged, revision: row.revision,
     createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
     deletedAt: row.deleted_at?.toISOString() ?? null }
 }
@@ -75,7 +75,7 @@ export async function pushNotes(userId: string, mutations: NoteMutation[], gener
       const now = new Date()
       const revision = mutation.baseRevision + 1
       const purged = mutation.purged ?? false
-      const data = { id: mutation.id, title: purged ? '' : mutation.title, body: purged ? '' : mutation.body,
+      const data = { id: mutation.id, collection: mutation.collection, title: purged ? '' : mutation.title, body: purged ? '' : mutation.body,
         tags: purged ? [] : mutation.tags, pinned: purged ? false : mutation.pinned ?? current?.pinned ?? false, purged,
         revision, created_at: current?.created_at ?? (mutation.createdAt ? new Date(mutation.createdAt) : now),
         updated_at: current ? now : (mutation.updatedAt ? new Date(mutation.updatedAt) : now),
@@ -108,7 +108,7 @@ export async function pullNotes(userId: string, cursor: number, limit = 100): Pr
     .andWhere('changes.user_id', userId)
     .orderBy('changes.sequence', 'asc')
     .limit(limit + 1)
-    .select('changes.sequence', 'notes.id', 'notes.title', 'notes.body', 'notes.tags', 'notes.pinned', 'notes.purged',
+    .select('changes.sequence', 'notes.id', 'notes.collection', 'notes.title', 'notes.body', 'notes.tags', 'notes.pinned', 'notes.purged',
       'notes.revision', 'notes.created_at', 'notes.updated_at', 'notes.deleted_at') as (Row & { sequence: string })[]
   const page = rows.slice(0, limit)
   return { changes: page.map(toNote), cursor: page.length ? Number(page[page.length - 1]!.sequence) : cursor,

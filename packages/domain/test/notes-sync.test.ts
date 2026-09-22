@@ -54,7 +54,7 @@ test('notes sync is revisioned, idempotent, tagged, and account scoped', async (
   assert.equal((await accountForSession(token))?.id, first.id)
 
   const noteId = crypto.randomUUID()
-  const initial = { mutationId: crypto.randomUUID(), id: noteId, baseRevision: 0,
+  const initial = { mutationId: crypto.randomUUID(), id: noteId, collection: 'Notes', baseRevision: 0,
     title: 'Example', body: 'First body', tags: ['work'],
     createdAt: '2021-02-03T00:00:00.000Z', updatedAt: '2022-05-06T15:30:00.000Z', deleted: false }
   const created = (await pushNotes(first.id, [initial])).results[0]
@@ -120,7 +120,7 @@ test('note shares are account scoped, public, current, and revocable', async () 
   const stranger = await registerAccount({ email: `shares-${crypto.randomUUID()}@example.test`,
     password: 'test-password-long-enough' })
   const noteId = crypto.randomUUID()
-  const initial = { mutationId: crypto.randomUUID(), id: noteId, baseRevision: 0,
+  const initial = { mutationId: crypto.randomUUID(), id: noteId, collection: 'Notes', baseRevision: 0,
     title: 'Public title', body: 'First public body', tags: [], deleted: false }
   await pushNotes(owner.id, [initial])
   assert.equal(await createNoteShare(stranger.id, noteId), null)
@@ -151,7 +151,7 @@ test('attachments are immutable, account scoped, limited, and removed with a pur
     const stranger = await registerAccount({ email: `attachments-${crypto.randomUUID()}@example.test`,
       password: 'test-password-long-enough' })
     const noteId = crypto.randomUUID()
-    const original = { mutationId: crypto.randomUUID(), id: noteId, baseRevision: 0,
+    const original = { mutationId: crypto.randomUUID(), id: noteId, collection: 'Notes', baseRevision: 0,
       title: 'With files', body: '', tags: [], deleted: false }
     await pushNotes(owner.id, [original])
     async function * bytes(value: string) { yield new TextEncoder().encode(value) }
@@ -194,7 +194,7 @@ test('a batch applies independent notes atomically and preserves mutation order'
   const registered = await registerAccount({ email: `batch-${crypto.randomUUID()}@example.test`,
     password: 'test-password-long-enough' })
   const mutations = Array.from({ length: 25 }, (_, index) => ({ mutationId: crypto.randomUUID(),
-    id: crypto.randomUUID(), baseRevision: 0, title: `Batch ${index}`, body: '', tags: [], deleted: false }))
+    id: crypto.randomUUID(), collection: 'Notes', baseRevision: 0, title: `Batch ${index}`, body: '', tags: [], deleted: false }))
   const result = await pushNotes(registered.id, mutations)
   assert.deepEqual(result.results.map(item => item.mutationId), mutations.map(item => item.mutationId))
   assert.ok(result.results.every(item => item.status === 'applied'))
@@ -208,7 +208,7 @@ test('a batch applies independent notes atomically and preserves mutation order'
 test('deleted notes can be restored and purged without allowing stale content to return', async () => {
   const user = await registerAccount({ email: `trash-${crypto.randomUUID()}@example.test`,
     password: 'test-password-long-enough' })
-  const initial = { mutationId: crypto.randomUUID(), id: crypto.randomUUID(), baseRevision: 0,
+  const initial = { mutationId: crypto.randomUUID(), id: crypto.randomUUID(), collection: 'Notes', baseRevision: 0,
     title: 'To delete', body: 'Private content', tags: ['private'], deleted: false }
   const apply = async (baseRevision: number, changes: Partial<typeof initial> & { purged?: boolean }) => {
     const result = (await pushNotes(user.id, [{ ...initial, ...changes,
@@ -240,7 +240,7 @@ test('deleted notes can be restored and purged without allowing stale content to
 test('reset removes only one account and rejects stale device uploads', async () => {
   const first = await registerAccount({ email: `reset-${crypto.randomUUID()}@example.test`, password: 'test-password-long-enough' })
   const second = await registerAccount({ email: `keep-${crypto.randomUUID()}@example.test`, password: 'test-password-long-enough' })
-  const mutation = () => ({ mutationId: crypto.randomUUID(), id: crypto.randomUUID(), baseRevision: 0,
+  const mutation = () => ({ mutationId: crypto.randomUUID(), id: crypto.randomUUID(), collection: 'Notes', baseRevision: 0,
     title: 'Stored note', body: 'Private body', tags: [], deleted: false })
   const old = mutation()
   const other = mutation()

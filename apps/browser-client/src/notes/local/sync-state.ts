@@ -14,7 +14,7 @@ export async function pendingMutations(ownerId = owner()): Promise<NoteMutation[
   const notes = await request<NoteRecord[]>(transaction.objectStore('notes').index('ownerId').getAll(ownerId))
   await completed(transaction)
   return notes.filter(note => note.dirty).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).map(note => ({
-    mutationId: note.mutationId!, id: note.id, baseRevision: note.baseRevision, title: note.title, body: note.body,
+    mutationId: note.mutationId!, id: note.id, baseRevision: note.baseRevision, collection: note.collection, title: note.title, body: note.body,
     tags: note.tags, pinned: note.pinned, purged: note.purged, createdAt: note.createdAt,
     updatedAt: note.updatedAt, deleted: !!note.deletedAt,
   }))

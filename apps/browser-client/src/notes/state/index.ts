@@ -6,14 +6,16 @@ import { resetAllNotes, syncNotes, type SyncProgress } from '../sync'
 import { usePreferences, type NoteSort, type SortDirection } from '../../preferences'
 import { useAccount } from '../../account'
 import { removeCachedAttachment } from '../../attachments'
+import { activeCollection as savedActiveCollection, addCollection, defaultCollection, mergeCollections,
+  saveActiveCollection } from '../../collections'
 
 let editSyncTimer: ReturnType<typeof setTimeout> | undefined
 
-function visibleNotes(notes: LocalNote[], search: string, tagFilter: string | null,
+function visibleNotes(notes: LocalNote[], collection: string, search: string, tagFilter: string | null,
   sort: NoteSort = usePreferences.getState().sort,
   direction: SortDirection = usePreferences.getState().sortDirection) {
   const term = search.toLocaleLowerCase()
-  const filtered = notes.filter(note => (!tagFilter || note.tags.includes(tagFilter)) &&
+  const filtered = notes.filter(note => note.collection === collection && (!tagFilter || note.tags.includes(tagFilter)) &&
     (!term || note.title.toLocaleLowerCase().includes(term) || note.body.toLocaleLowerCase().includes(term) ||
       note.tags.join(' ').toLocaleLowerCase().includes(term)))
   return filtered.sort((a, b) => {
@@ -33,11 +35,13 @@ function selectVisible(notes: LocalNote[], selectedId: string | null, selectionC
 }
 
 type State = {
-  notes: LocalNote[]; allNotes: LocalNote[]; trash: LocalNote[]; tags: string[]; tagFilter: string | null; search: string;
+  notes: LocalNote[]; allNotes: LocalNote[]; trash: LocalNote[]; tags: string[]; collections: string[]; activeCollection: string;
+  tagFilter: string | null; search: string;
   selectedId: string | null; selectionCleared: boolean;
   status: 'loading' | 'local' | 'offline' | 'auth-required' | 'syncing' | 'synced' | 'sync-error' | 'storage-error'; error: string | null;
   progress: SyncProgress | null;
   setSearch(search: string): Promise<void>; setTagFilter(tag: string | null): Promise<void>; refresh(): Promise<void>;
+  setActiveCollection(collection: string): void; createCollection(name: string): boolean;
   resort(): void;
   select(id: string | null): void; create(title: string): Promise<boolean>;
   save(id: string, title: string, body: string, tags: string[]): Promise<void>;
@@ -47,17 +51,35 @@ type State = {
 }
 
 export const useNotes = create<State>((set, get) => ({
-  notes: [], allNotes: [], trash: [], tags: [], tagFilter: null, search: '', selectedId: null, selectionCleared: false,
+  notes: [], allNotes: [], trash: [], tags: [], collections: [defaultCollection], activeCollection: defaultCollection,
+  tagFilter: null, search: '', selectedId: null, selectionCleared: false,
   status: 'loading', error: null, progress: null,
   async setSearch(search) { set(state => {
-    const notes = visibleNotes(state.allNotes, search, state.tagFilter)
+    const notes = visibleNotes(state.allNotes, state.activeCollection, search, state.tagFilter)
     return { search, notes, selectedId: selectVisible(notes, state.selectedId, state.selectionCleared) }
   }) },
   async setTagFilter(tagFilter) { set(state => {
-    const notes = visibleNotes(state.allNotes, state.search, tagFilter)
+    const notes = visibleNotes(state.allNotes, state.activeCollection, state.search, tagFilter)
     return { tagFilter, notes, selectedId: selectVisible(notes, state.selectedId, state.selectionCleared) }
   }) },
-  resort() { set(state => ({ notes: visibleNotes(state.allNotes, state.search, state.tagFilter) })) },
+  setActiveCollection(activeCollection) {
+    saveActiveCollection(activeCollection)
+    set(state => {
+      const notes = visibleNotes(state.allNotes, activeCollection, '', null)
+      return { activeCollection, search: '', tagFilter: null, notes,
+        tags: [...new Set(state.allNotes.filter(note => note.collection === activeCollection).flatMap(note => note.tags))].sort(),
+        selectedId: selectVisible(notes, null, false), selectionCleared: false }
+    })
+  },
+  createCollection(value) {
+    const added = addCollection(get().collections, value)
+    if (!added) return false
+    const { name, collections } = added
+    set({ collections })
+    get().setActiveCollection(name)
+    return true
+  },
+  resort() { set(state => ({ notes: visibleNotes(state.allNotes, state.activeCollection, state.search, state.tagFilter) })) },
   async refresh() {
     const sort = usePreferences.getState().sort
     const accountId = activeAccountId()
@@ -65,9 +87,13 @@ export const useNotes = create<State>((set, get) => ({
       const [allNotes, trash] = await Promise.all([listNotes('', sort), listTrash()])
       if (usePreferences.getState().sort !== sort || activeAccountId() !== accountId) return
       set(state => {
-        const notes = visibleNotes(allNotes, state.search, state.tagFilter)
-        const tags = [...new Set(allNotes.flatMap(note => note.tags))].sort()
-        return { allNotes, notes, trash, tags, selectedId: selectVisible(notes, state.selectedId, state.selectionCleared),
+        const collections = mergeCollections(allNotes.map(note => note.collection))
+        const preferred = savedActiveCollection()
+        const activeCollection = collections.includes(preferred) ? preferred : defaultCollection
+        const notes = visibleNotes(allNotes, activeCollection, state.search, state.tagFilter)
+        const tags = [...new Set(allNotes.filter(note => note.collection === activeCollection).flatMap(note => note.tags))].sort()
+        return { allNotes, notes, trash, tags, collections, activeCollection,
+          selectedId: selectVisible(notes, state.selectedId, state.selectionCleared),
         ...(state.status === 'storage-error' ? {
           status: (accountId ? 'offline' : 'local') as State['status'], error: null,
         } : {}) }
@@ -77,7 +103,7 @@ export const useNotes = create<State>((set, get) => ({
   select(selectedId) { set({ selectedId, selectionCleared: selectedId === null }) },
   async create(title) {
     const id = newIdentifier()
-    try { await saveNote(id, title.trim().slice(0, 500) || 'Untitled', '') }
+    try { await saveNote(id, title.trim().slice(0, 500) || 'Untitled', '', false, undefined, [], get().activeCollection) }
     catch (error) { set({ status: 'storage-error', error: String(error) }); return false }
     set({ search: '', tagFilter: null, selectedId: id, selectionCleared: false })
     await get().refresh()
@@ -86,7 +112,8 @@ export const useNotes = create<State>((set, get) => ({
   },
   async save(id, title, body, tags) {
     let changed: boolean
-    try { changed = await saveNote(id, title, body, false, undefined, tags) }
+    const collection = get().allNotes.find(note => note.id === id)?.collection ?? get().activeCollection
+    try { changed = await saveNote(id, title, body, false, undefined, tags, collection) }
     catch (error) { set({ status: 'storage-error', error: String(error) }); throw error }
     if (!changed) return
     await get().refresh()
@@ -106,7 +133,7 @@ export const useNotes = create<State>((set, get) => ({
   async remove(id) {
     const note = get().notes.find(item => item.id === id)
     if (!note) return false
-    try { await saveNote(id, note.title, note.body, true, undefined, note.tags) }
+    try { await saveNote(id, note.title, note.body, true, undefined, note.tags, note.collection) }
     catch (error) { set({ status: 'storage-error', error: String(error) }); return false }
     set({ selectedId: null, selectionCleared: false })
     await get().refresh()

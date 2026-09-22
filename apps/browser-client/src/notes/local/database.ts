@@ -42,16 +42,28 @@ export function completed(transaction: IDBTransaction): Promise<void> {
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const opening = indexedDB.open(databaseName, 1)
-    opening.onupgradeneeded = () => {
+    const opening = indexedDB.open(databaseName, 2)
+    opening.onupgradeneeded = event => {
       const database = opening.result
-      const notes = database.createObjectStore('notes', { keyPath: 'key' })
-      notes.createIndex('ownerId', 'ownerId')
-      const attachments = database.createObjectStore('attachments', { keyPath: 'key' })
-      attachments.createIndex('ownerId', 'ownerId')
-      attachments.createIndex('ownerNote', ['ownerId', 'noteId'])
-      database.createObjectStore('syncState', { keyPath: 'key' })
-      database.createObjectStore('meta', { keyPath: 'key' })
+      const oldVersion = (event as IDBVersionChangeEvent).oldVersion
+      if (oldVersion < 1) {
+        const notes = database.createObjectStore('notes', { keyPath: 'key' })
+        notes.createIndex('ownerId', 'ownerId')
+        const attachments = database.createObjectStore('attachments', { keyPath: 'key' })
+        attachments.createIndex('ownerId', 'ownerId')
+        attachments.createIndex('ownerNote', ['ownerId', 'noteId'])
+        database.createObjectStore('syncState', { keyPath: 'key' })
+        database.createObjectStore('meta', { keyPath: 'key' })
+      }
+      if (oldVersion < 2) {
+        const store = opening.transaction!.objectStore('notes')
+        store.openCursor().onsuccess = event => {
+          const cursor = (event.target as IDBRequest<IDBCursorWithValue | null>).result
+          if (!cursor) return
+          cursor.update({ ...cursor.value, collection: cursor.value.collection ?? 'Notes' })
+          cursor.continue()
+        }
+      }
     }
     opening.onsuccess = () => resolve(opening.result)
     opening.onerror = () => reject(opening.error ?? new Error('Could not open local note storage'))
@@ -126,7 +138,7 @@ async function migrateLegacyDatabase(database: IDBDatabase) {
     const transaction = database.transaction(['notes', 'attachments', 'syncState', 'meta'], 'readwrite')
     const noteStore = transaction.objectStore('notes')
     for (const row of snapshot.notes) noteStore.put({
-      key: ownedKey(row.owner_id, row.id), ownerId: row.owner_id, id: row.id, title: row.title, body: row.body,
+      key: ownedKey(row.owner_id, row.id), ownerId: row.owner_id, id: row.id, collection: 'Notes', title: row.title, body: row.body,
       tags: row.tags, pinned: row.pinned, purged: row.purged, revision: row.revision,
       createdAt: row.created_at ?? row.updated_at, updatedAt: row.updated_at, deletedAt: row.deleted_at,
       dirty: row.dirty, mutationId: row.mutation_id, baseRevision: row.base_revision,

@@ -71,19 +71,19 @@ export async function emptyTrash(ownerId = owner()) {
   return { count: purged.length, attachmentIds }
 }
 
-export async function saveNote(id: string, title: string, body: string, deleted = false, ownerId = owner(), tags: string[] = []) {
+export async function saveNote(id: string, title: string, body: string, deleted = false, ownerId = owner(), tags: string[] = [], collection = 'Notes') {
   const database = await ready()
   const transaction = database.transaction('notes', 'readwrite')
   const store = transaction.objectStore('notes')
   const key = ownedKey(ownerId, id)
   const current = await request<NoteRecord | undefined>(store.get(key))
-  const changed = !current || current.title !== title || current.body !== body ||
+  const changed = !current || current.title !== title || current.body !== body || current.collection !== collection ||
     current.tags.length !== tags.length || current.tags.some((tag, index) => tag !== tags[index]) || !!current.deletedAt !== deleted
   if (changed) {
     const now = new Date().toISOString()
-    store.put(current ? { ...current, title, body, tags, updatedAt: now, deletedAt: deleted ? now : null,
+    store.put(current ? { ...current, collection, title, body, tags, updatedAt: now, deletedAt: deleted ? now : null,
       dirty: true, mutationId: newIdentifier() } : {
-      key, ownerId, id, title, body, tags, pinned: false, purged: false, revision: 0,
+      key, ownerId, id, collection, title, body, tags, pinned: false, purged: false, revision: 0,
       createdAt: now, updatedAt: now, deletedAt: deleted ? now : null, dirty: true, mutationId: newIdentifier(), baseRevision: 0,
       syncedBody: '', syncedTitle: '',
     } satisfies NoteRecord)
@@ -114,7 +114,7 @@ export async function importLocalNotes(notes: { title: string; body: string; tag
   for (const [index, note] of notes.entries()) {
     const id = newIdentifier()
     const now = new Date().toISOString()
-    store.add({ key: ownedKey(ownerId, id), ownerId, id, title: note.title, body: note.body, tags: note.tags ?? [],
+    store.add({ key: ownedKey(ownerId, id), ownerId, id, collection: 'Notes', title: note.title, body: note.body, tags: note.tags ?? [],
       pinned: note.pinned ?? false, purged: false, revision: 0, createdAt: note.createdAt ?? note.updatedAt ?? now,
       updatedAt: note.updatedAt ?? note.createdAt ?? now, deletedAt: null, dirty: true, mutationId: newIdentifier(),
       baseRevision: 0, syncedBody: '', syncedTitle: '' } satisfies NoteRecord)

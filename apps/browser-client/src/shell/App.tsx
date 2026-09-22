@@ -82,8 +82,44 @@ class RichEditorBoundary extends Component<{ children: ReactNode; onError: (erro
   render() { return this.state.failed ? null : this.props.children }
 }
 
+function CollectionPicker({ className, collections, active, onSelect, onCreate }: {
+  className: string; collections: string[]; active: string; onSelect(value: string): void; onCreate(value: string): boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [name, setName] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (creating) input.current?.focus() }, [creating])
+  const create = () => {
+    if (!onCreate(name)) return
+    setName(''); setCreating(false); setOpen(false)
+  }
+  return <div className={`collection-picker ${className}`}>
+    <button type="button" className="collection-trigger" aria-haspopup="menu" aria-expanded={open}
+      onClick={() => { setOpen(value => !value); setCreating(false); setName('') }}>
+      <span>{active}</span><svg aria-hidden="true" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="m3 4.5 3 3 3-3" /></svg>
+    </button>
+    {open && <>
+      <button type="button" className="collection-dismiss" tabIndex={-1} aria-label="Close collection selector" onClick={() => setOpen(false)} />
+      <div className="collection-menu" role="menu" aria-label="Collections">
+        <div className="collection-menu-label">COLLECTIONS</div>
+        {collections.map(collection => <button type="button" role="menuitemradio" aria-checked={collection === active}
+          key={collection} onClick={() => { onSelect(collection); setOpen(false) }}>
+          <span>{collection}</span>{collection === active && <span aria-hidden="true">✓</span>}
+        </button>)}
+        {creating ? <form className="collection-create" onSubmit={event => { event.preventDefault(); create() }}>
+          <input ref={input} value={name} maxLength={80} aria-label="Collection name" placeholder="Collection name"
+            onChange={event => setName(event.target.value)} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setCreating(false) } }} />
+          <button type="submit" disabled={!name.trim()}>Add</button>
+        </form> : <button type="button" className="collection-new" onClick={() => setCreating(true)}>+ New collection</button>}
+      </div>
+    </>}
+  </div>
+}
+
 export function App() {
-  const { notes, allNotes, trash, tags, tagFilter, search, selectedId, status, error, progress, setSearch, setTagFilter,
+  const { notes, allNotes, trash, tags, collections, activeCollection, tagFilter, search, selectedId, status, error, progress,
+    setSearch, setTagFilter, setActiveCollection, createCollection,
     refresh, resort, select, create, save, setPinned, remove, restore, emptyTrash, reset, sync } = useNotes()
   const preferences = usePreferences()
   const account = useAccount(state => state.account)
@@ -277,8 +313,9 @@ export function App() {
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
     <div className="landscape-blocker" role="status"><span aria-hidden="true">↻</span>Rotate your device to portrait</div>
     <div className="mobile-list-heading">
-      <button className="mobile-list-scroll" aria-label="Scroll notes to top"
-        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}><span>NOTES</span><span>{initialLoad === 'loading' ? '' : notes.length}</span></button>
+      <CollectionPicker className="mobile-collection-picker" collections={collections} active={activeCollection}
+        onSelect={setActiveCollection} onCreate={createCollection} />
+      <span className="mobile-note-count">{initialLoad === 'loading' ? '' : notes.length}</span>
       <button className={`mobile-connection ${connected ? 'connected' : ''}`}
         aria-label={connected ? 'Account Connected' : 'Account Disconnected'}
         title={connected ? 'Account Connected' : 'Account Disconnected'}
@@ -303,6 +340,8 @@ export function App() {
           if (event.key === 'ArrowUp') { event.preventDefault(); moveSelection(-1) }
           if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); openSelection() }
         }} />
+      <CollectionPicker className="desktop-collection-picker" collections={collections} active={activeCollection}
+        onSelect={setActiveCollection} onCreate={createCollection} />
       <kbd className="omnibar-shortcut">{focusShortcut}</kbd>
       {search && <button className="chip" onClick={() => void setSearch('')}>ESC to clear</button>}
       {tagFilter && <button className="chip" onClick={() => void setTagFilter(null)}>#{tagFilter} ×</button>}

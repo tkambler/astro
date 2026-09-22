@@ -20,6 +20,7 @@ test('native IndexedDB storage preserves workspace, sync, attachment, and trash 
   const originalId = local.newIdentifier()
   await local.saveNote(originalId, 'Guest note', 'offline body', false, undefined, ['local'])
   assert.deepEqual((await local.listNotes()).map(note => note.title), ['Guest note'])
+  assert.equal((await local.listNotes())[0]?.collection, 'Notes')
 
   await local.activateAccount('account-1')
   const [moved] = await local.listNotes()
@@ -35,7 +36,7 @@ test('native IndexedDB storage preserves workspace, sync, attachment, and trash 
 
   await local.setCursor(42)
   assert.equal(await local.getCursor(), 42)
-  await local.receiveNote({ id: local.newIdentifier(), title: 'Remote note', body: 'server body', tags: ['remote'],
+  await local.receiveNote({ id: local.newIdentifier(), collection: 'Work', title: 'Remote note', body: 'server body', tags: ['remote'],
     pinned: false, purged: false, revision: 1, createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z', deletedAt: null })
   assert.deepEqual((await local.listNotes('', 'title')).map(note => note.title), ['Guest note', 'Remote note'])

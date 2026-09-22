@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 export const note = z.object({
   id: z.uuid(),
+  collection: z.string().trim().min(1).max(80),
   title: z.string().max(500),
   body: z.string(),
   tags: z.array(z.string().min(1).max(50)).max(20),
@@ -17,6 +18,7 @@ export type Note = z.infer<typeof note>
 export const noteMutation = z.object({
   mutationId: z.uuid(),
   id: z.uuid(),
+  collection: z.string().trim().min(1).max(80),
   baseRevision: z.number().int().nonnegative(),
   title: z.string().max(500),
   body: z.string(),

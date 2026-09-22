@@ -4,7 +4,7 @@ import type { NoteMutation } from '@astronote/schemas'
 import { nextPushBatch } from '../src/notes/sync/batch.ts'
 
 function mutation(index: number, body = ''): NoteMutation {
-  return { mutationId: crypto.randomUUID(), id: crypto.randomUUID(), baseRevision: 0,
+  return { mutationId: crypto.randomUUID(), id: crypto.randomUUID(), collection: 'Notes', baseRevision: 0,
     title: `Note ${index}`, body, tags: [], deleted: false }
 }
 
