@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type DragEvent } from 'react'
 import type { Attachment } from '@astronote/schemas'
-import { cached, forgetAttachment, localAttachments, openAttachment, refreshAttachmentCatalog,
-  rememberAttachment, removeCachedAttachment, upload } from './index'
+import { attachmentIsEmbeddedImage, cached, forgetAttachment, ImageViewer, localAttachments, openAttachment,
+  refreshAttachmentCatalog, rememberAttachment, removeCachedAttachment, upload } from './index'
 
 type Transfer = { key: string; filename: string; progress: number; error: string }
 
@@ -23,6 +23,7 @@ export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteI
   const [message, setMessage] = useState('')
   const [dragging, setDragging] = useState(false)
   const [keyboardOpen, setKeyboardOpen] = useState(false)
+  const [viewing, setViewing] = useState<Attachment | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const dialog = useRef<HTMLDialogElement>(null)
   const dock = useRef<HTMLButtonElement>(null)
@@ -40,7 +41,7 @@ export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteI
     setItems(next); await loadAvailability(next)
   }
 
-  useEffect(() => { setMessage(''); setTransfers([]); void loadLocal() }, [noteId])
+  useEffect(() => { setMessage(''); setTransfers([]); setViewing(null); void loadLocal() }, [noteId])
   useEffect(() => { if (mobile) setOpen(false) }, [mobile])
   useEffect(() => { if (open && connected) void refresh().catch(error => setMessage(String(error))) }, [open, connected, noteId])
   useEffect(() => {
@@ -121,6 +122,7 @@ export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteI
       setAvailable(current => new Set(current).add(item.id))
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
   }
+  const markAvailable = useCallback((id: string) => setAvailable(current => new Set(current).add(id)), [])
   const remove = async (item: Attachment) => {
     if (!connected) { setMessage('Connect to manage attachments.'); return }
     const embedded = noteBody.includes(`attachment:${item.id}`)
@@ -142,7 +144,8 @@ export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteI
       {items.map(item => <div className="attachment-row" key={item.id}>
         <span className="attachment-file-icon" aria-hidden="true">{item.filename.split('.').pop()?.slice(0, 4).toUpperCase() || 'FILE'}</span>
         <span className="attachment-details"><strong title={item.filename}>{item.filename}</strong><small>{formatSize(item.byteSize)} · {available.has(item.id) ? 'on this device' : connected ? 'download when opened' : 'connect to download'}</small></span>
-        <button type="button" onClick={() => void download(item)} disabled={!connected && !available.has(item.id)}>{available.has(item.id) ? 'Open' : 'Download'}</button>
+        <button type="button" onClick={() => attachmentIsEmbeddedImage(item) ? setViewing(item) : void download(item)}
+          disabled={!connected && !available.has(item.id)}>{attachmentIsEmbeddedImage(item) ? 'View' : available.has(item.id) ? 'Open' : 'Download'}</button>
         <button type="button" className="attachment-delete" aria-label={`Delete ${item.filename}`} disabled={!connected} onClick={() => void remove(item)}>×</button>
       </div>)}
       {transfers.map(item => <div className="attachment-row attachment-transfer" key={item.key}>
@@ -159,6 +162,8 @@ export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteI
     }} />
   </div>
 
+  const viewer = <ImageViewer attachment={viewing} onClose={() => setViewing(null)} onAvailable={markAvailable} />
+
   if (mobile) return <>
     {!keyboardOpen && <button ref={dock} type="button" className="attachment-dock" aria-expanded={open}
       onClick={() => setOpen(true)}><Paperclip /><span>Attachments</span><strong>{items.length}</strong></button>}
@@ -169,13 +174,14 @@ export function AttachmentShelf({ noteId, noteBody, mobile, connected }: { noteI
         <div className="attachment-sheet-title"><span id="attachment-sheet-title">NOTE FILES</span><button type="button" onClick={() => dialog.current?.close()} aria-label="Close attachments">×</button></div>
         {content}</div>
     </dialog>
+    {viewer}
   </>
 
-  return <aside className={`attachment-rail ${open ? 'is-open' : ''}`}>
+  return <><aside className={`attachment-rail ${open ? 'is-open' : ''}`}>
     <button type="button" className="attachment-rail-toggle" aria-expanded={open} title={open ? 'Close attachments' : 'Open attachments'}
       onClick={() => { const next = !open; setOpen(next); localStorage.setItem('astronote-attachment-rail-open', next ? '1' : '0') }}>
       <Paperclip /><strong>{items.length}</strong><span>ATTACHMENTS</span>
     </button>
     {open && content}
-  </aside>
+  </aside>{viewer}</>
 }

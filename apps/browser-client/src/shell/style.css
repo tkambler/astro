@@ -128,6 +128,17 @@ button { cursor: pointer; }
 .attachment-empty strong { color: var(--text-secondary); font-size: 11px; font-weight: 500; }
 .attachment-empty span { max-width: 180px; font-size: 10px; line-height: 1.5; }
 .attachment-dock, .attachment-sheet { display: none; }
+.attachment-viewer[open] { position: fixed; inset: 0; z-index: 80; display: grid; width: 100%; max-width: none; height: 100%; max-height: none; place-items: center; border: 0; padding: clamp(12px, 3vw, 36px); background: transparent; color: var(--text); }
+.attachment-viewer::backdrop { background: #080a0ddd; backdrop-filter: blur(5px); }
+.attachment-viewer-frame { display: flex; width: min(1120px, 100%); height: min(86dvh, 860px); flex-direction: column; overflow: hidden; border: 1px solid color-mix(in srgb, var(--line) 70%, white); border-radius: 8px; background: var(--bg); box-shadow: 0 24px 80px #0009; }
+.attachment-viewer header { display: flex; min-height: 48px; flex: none; align-items: center; gap: 16px; border-bottom: 1px solid var(--line); padding: 7px 8px 7px 16px; background: var(--bg-chrome); }
+.attachment-viewer header strong { min-width: 0; flex: 1; overflow: hidden; color: var(--text-secondary); font-size: 11px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-viewer header button { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border: 0; border-radius: 4px; background: transparent; color: var(--text-muted); font-size: 23px; line-height: 1; }
+.attachment-viewer header button:hover, .attachment-viewer header button:focus-visible { background: var(--accent-tint); color: var(--accent); }
+.attachment-viewer-canvas { display: grid; min-height: 0; flex: 1; place-items: center; overflow: auto; padding: clamp(12px, 2.5vw, 30px); background-color: #17191c; background-image: linear-gradient(45deg, #ffffff08 25%, transparent 25%), linear-gradient(-45deg, #ffffff08 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ffffff08 75%), linear-gradient(-45deg, transparent 75%, #ffffff08 75%); background-position: 0 0, 0 8px, 8px -8px, -8px 0; background-size: 16px 16px; }
+.attachment-viewer-canvas img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; box-shadow: 0 8px 30px #0008; }
+.attachment-viewer-canvas span { color: #d5d7da; font-size: 11px; }
+.attachment-viewer-canvas .attachment-viewer-error { max-width: 420px; color: #ffaaa2; line-height: 1.5; text-align: center; }
 .editor-heading { display: none; }
 .editor-heading > input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font-size: clamp(24px, 2vw, 32px); font-weight: 700; }
 .editor-heading button { color: var(--text-muted); background: transparent; border: 0; }
@@ -388,6 +399,9 @@ button { cursor: pointer; }
   .attachment-sheet .attachment-content { min-height: 0; }
   .attachment-sheet .attachment-heading { min-height: 54px; padding-inline: 16px; }
   .attachment-sheet .attachment-row { grid-template-columns: 42px minmax(0, 1fr) auto 30px; min-height: 66px; padding-inline: 14px; }
+  .attachment-viewer[open] { padding: 0; }
+  .attachment-viewer-frame { width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+  .attachment-viewer header { min-height: calc(52px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 10px 0 16px; }
   .editor-heading { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr) 32px; align-items: center; gap: 8px; min-height: calc(58px + env(safe-area-inset-top)); padding: calc(8px + env(safe-area-inset-top)) 18px 8px; }.editor-heading > button { display: none; }.editor-heading > .mobile-back { display: inline-flex; grid-column: 1; align-items: center; justify-content: flex-start; width: 32px; height: 32px; font-size: 24px; line-height: 1; }.editor-heading > .mobile-editor-palette { display: inline-flex; grid-column: 3; width: 32px; height: 32px; justify-self: end; border: 0; padding: 0; background: transparent; color: var(--text-secondary); }
   .mobile-title-field { display: flex; grid-column: 2; min-width: 0; background: var(--bg); padding: 0; }
   .mobile-title-field > input { width: 100%; min-width: 0; border: 0; outline: 0; padding: 0; background: transparent; color: var(--text); font-size: 20px; font-weight: 700; }
