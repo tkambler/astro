@@ -26,7 +26,7 @@ button { cursor: pointer; }
 .collection-trigger svg { width: 12px; height: 12px; flex: none; }
 .collection-trigger:hover, .collection-trigger:focus-visible, .collection-trigger[aria-expanded='true'] { border-color: var(--accent-border); color: var(--accent); }
 .collection-dismiss { position: fixed; inset: 0; z-index: 24; border: 0; padding: 0; background: transparent; }
-.collection-menu { position: absolute; top: calc(100% + 7px); right: 0; z-index: 25; display: flex; width: 230px; max-height: min(55vh, 360px); flex-direction: column; overflow-y: auto; border: 1px solid var(--line); border-radius: 7px; padding: 6px; background: var(--bg); box-shadow: 0 10px 30px #0003; }
+.collection-menu { position: absolute; top: calc(100% + 7px); right: 0; z-index: 25; display: flex; width: 230px; max-height: min(calc(100dvh - 90px), 750px); flex-direction: column; overflow-y: auto; border: 1px solid var(--line); border-radius: 7px; padding: 6px; background: var(--bg); box-shadow: 0 10px 30px #0003; }
 .collection-menu { scrollbar-width: none; scrollbar-color: color-mix(in srgb, var(--text-muted) 45%, transparent) transparent; }
 .collection-menu:hover, .collection-menu:focus-within { scrollbar-width: thin; }
 .collection-menu::-webkit-scrollbar { width: 0; }
