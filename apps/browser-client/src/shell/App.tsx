@@ -177,7 +177,7 @@ export function App() {
   const mobileListScroll = useRef<{ top: number; restore: boolean }>({ top: 0, restore: false })
   const selected = notes.find(note => note.id === selectedId) ?? null
   const showMobileEditor = () => {
-    if (mobileLayout && !mobileEditor) mobileListScroll.current = { top: window.scrollY, restore: true }
+    if (mobileLayout && !mobileEditor) mobileListScroll.current = { top: results.current?.scrollTop ?? 0, restore: true }
     setMobileEditor(true)
   }
   const returnToMobileList = () => setMobileEditor(false)
@@ -185,7 +185,7 @@ export function App() {
     if (!mobileLayout || mobileEditor || !mobileListScroll.current.restore) return
     const { top } = mobileListScroll.current
     mobileListScroll.current.restore = false
-    window.scrollTo(0, top)
+    results.current?.scrollTo(0, top)
   }, [mobileLayout, mobileEditor])
   const createAndOpen = async (title: string) => {
     if (await create(title)) showMobileEditor()
@@ -495,6 +495,7 @@ export function App() {
       <button type="button" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); setMoveNoteId(id) }}>Move to Collection…</button>
       <button type="button" className="destructive" role="menuitem" onClick={() => { const id = noteMenu.id; setNoteMenu(null); void remove(id) }}>Delete</button>
     </div>}
+    {(status === 'sync-error' || status === 'storage-error') && error && <div className="mobile-sync-error" role="alert">{error}</div>}
     <footer className="statusbar">
       <button className={`statusbar-account ${signedIn ? 'signed-in' : ''}`} title={signedIn ? account.email : 'Sign In'} onClick={() => { setAccountPanel(true); setSettings(false) }}>{signedIn ? account.email : 'Sign In'}</button>
       <div className="statusbar-right">
@@ -503,7 +504,6 @@ export function App() {
         {signedIn && <button onClick={() => void sync()}>Sync Now</button>}
       </div>
     </footer>
-    {(status === 'sync-error' || status === 'storage-error') && error && <div className="mobile-sync-error" role="alert">{error}</div>}
   </div>
 }
 

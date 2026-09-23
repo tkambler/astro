@@ -153,17 +153,19 @@ Test behavior, not merely initial appearance. Run at least 50–60 cycles that:
 3. Read element geometry after each operation.
 4. Fail immediately if any invariant is violated.
 
-For the current document-scrolling mobile layout, verify:
+For the mobile app shell, verify:
 
-- `window.scrollY` reaches both zero and the bottom of the document.
+- `window.scrollY` remains zero and the document does not scroll.
+- `.results` is the only vertical scrolling region in the note list.
+- `.results.scrollTop` reaches both zero and the bottom of the note list.
 - All seeded `.result` rows remain in the DOM.
-- `.mobile-list-heading` remains at the viewport top.
+- `.mobile-list-heading` begins at the viewport top.
 - `.omnibar` begins immediately below the mobile heading.
 - `.sidebar-heading` begins immediately below the omnibar.
 - `.statusbar.getBoundingClientRect().bottom === window.innerHeight` within a
   small subpixel tolerance.
 - Opening a note from the middle of the list and pressing **Back to notes**
-  restores the previous `window.scrollY`.
+  restores the previous `.results.scrollTop`.
 
 Do not stop at the list. Repeat the viewport-height cycle for every
 `mobile-detail` view and verify that each outer view ends at
@@ -174,15 +176,15 @@ Do not stop at the list. Repeat the viewport-height cycle for every
 - Account panel.
 - Open attachment sheet and its bottom sheet panel.
 
-The mobile detail shell uses the stable large viewport (`100lvh`) so an
-installed iOS app does not retain the shortened dynamic viewport after browser
-chrome or the software keyboard changes size.
+The app shell uses the dynamic viewport (`100dvh`) so the visible layout follows
+browser chrome and software-keyboard changes without introducing document
+scrolling.
 
-The regression fixed in commit `5ee92ba` came from making `.results` a nested
-mobile scroll container inside a fixed, dynamic-viewport-height application
-shell. The durable fix was to let the document own mobile-list scrolling and
-keep the mobile header bands and footer fixed. The note editor remains a
-fixed-height application view.
+The mobile shell is fixed to the dynamic viewport and owns exactly one
+scrolling region per view. On the notes list that region is `.results`; the
+document and the header/footer chrome never scroll. This keeps the bottom safe
+area inside the shell instead of positioning the footer against a separately
+scrolling document.
 
 ## Screenshots and their limits
 
