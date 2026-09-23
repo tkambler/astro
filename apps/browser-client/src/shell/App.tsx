@@ -378,16 +378,20 @@ export function App() {
     </div>
     <header className="omnibar">
       <span className="prompt" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m7 4 6 6-6 6" /></svg></span>
-      <input ref={input} aria-label="Search or create a note" placeholder="Search or create a note…" value={search}
-        onChange={event => { void setSearch(event.target.value) }}
-        onKeyDown={event => {
-          if (event.key === 'ArrowDown') { event.preventDefault(); moveSelection(1) }
-          if (event.key === 'ArrowUp') { event.preventDefault(); moveSelection(-1) }
-          if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); openSelection() }
-        }} />
+      <div className="omnibar-query">
+        <input ref={input} aria-label="Search or create a note" value={search}
+          onChange={event => { void setSearch(event.target.value) }}
+          onKeyDown={event => {
+            if (event.key === 'ArrowDown') { event.preventDefault(); moveSelection(1) }
+            if (event.key === 'ArrowUp') { event.preventDefault(); moveSelection(-1) }
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); openSelection() }
+          }} />
+        {!search && <span className="omnibar-placeholder" aria-hidden="true">
+          <span>Search or create a note…</span><kbd className="omnibar-shortcut">{focusShortcut}</kbd>
+        </span>}
+      </div>
       <CollectionPicker className="desktop-collection-picker" collections={collections} active={activeCollection}
         onSelect={setActiveCollection} onCreate={createCollection} onDelete={deleteCollection} />
-      <kbd className="omnibar-shortcut">{focusShortcut}</kbd>
       {search && <button className="chip" onClick={() => void setSearch('')}>ESC to clear</button>}
       {tagFilter && <button className="chip" onClick={() => void setTagFilter(null)}>#{tagFilter} ×</button>}
       {search && <button className="mobile-clear" aria-label="Clear search" onClick={() => void setSearch('')}>×</button>}
