@@ -166,6 +166,8 @@ For the mobile app shell, verify:
   small subpixel tolerance.
 - `.statusbar.getBoundingClientRect().height === 24`; the list footer deliberately
   does not inherit the mutable iOS bottom safe-area inset.
+- `.attachment-dock.getBoundingClientRect().height === 56`; the note-detail dock
+  follows the same fixed-footprint rule.
 - Opening a note from the middle of the list and pressing **Back to notes**
   restores the previous `.results.scrollTop`.
 

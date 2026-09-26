@@ -3,8 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import { App } from './shell/App'
 import { SharedNote } from './shares/SharedNote'
+import { installPointerLockRecovery } from './shell/pointer-lock'
 import './shell/style.css'
 import '@mdxeditor/editor/style.css'
+
+installPointerLockRecovery()
 
 registerSW({
   immediate: true,
