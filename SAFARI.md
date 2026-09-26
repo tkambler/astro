@@ -164,6 +164,8 @@ For the mobile app shell, verify:
 - `.sidebar-heading` begins immediately below the omnibar.
 - `.statusbar.getBoundingClientRect().bottom === window.innerHeight` within a
   small subpixel tolerance.
+- `.statusbar.getBoundingClientRect().height === 24`; the list footer deliberately
+  does not inherit the mutable iOS bottom safe-area inset.
 - Opening a note from the middle of the list and pressing **Back to notes**
   restores the previous `.results.scrollTop`.
 
