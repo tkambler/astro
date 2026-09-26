@@ -357,7 +357,11 @@ export function App() {
   ]
   return <div className={`app ${mobileDetail ? 'mobile-detail' : 'mobile-list'}`}>
     <div className="landscape-blocker" role="status"><span aria-hidden="true">↻</span>Rotate your device to portrait</div>
-    <div className="mobile-list-heading">
+    <div className="mobile-list-heading" onClick={event => {
+      const target = event.target
+      if (target instanceof Element && target.closest('button, input, .collection-picker')) return
+      results.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    }}>
       <CollectionPicker className="mobile-collection-picker" collections={collections} active={activeCollection}
         onSelect={setActiveCollection} onCreate={createCollection} onDelete={deleteCollection} />
       <span className="mobile-note-count">{initialLoad === 'loading' ? '' : notes.length}</span>

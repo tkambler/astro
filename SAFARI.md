@@ -168,6 +168,9 @@ For the mobile app shell, verify:
   does not inherit the mutable iOS bottom safe-area inset.
 - `.attachment-dock.getBoundingClientRect().height === 24`; the note-detail dock
   matches the list footer and follows the same fixed-footprint rule.
+- After scrolling the notes list, tapping the non-interactive area of the mobile
+  header (including the safe-area region around the Dynamic Island) scrolls
+  `.results` back to the top without activating a header control.
 - Opening a note from the middle of the list and pressing **Back to notes**
   restores the previous `.results.scrollTop`.
 
